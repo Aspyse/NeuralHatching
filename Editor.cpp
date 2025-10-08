@@ -17,7 +17,7 @@ bool Editor::Initialize()
 	// System inits
 	m_ui = new UI;
 	m_viewport = new Viewport;
-	m_ui->Initialize(m_hwnd, m_viewport);
+	m_ui->Initialize(m_hwnd);
 
 	m_input = new Input;
 	m_input->Initialize();
@@ -67,6 +67,10 @@ bool Editor::Frame()
 		return false;
 
 	result = m_ui->Frame();
+	if (!result)
+		return false;
+
+	result = m_viewport->Render();
 	if (!result)
 		return false;
 

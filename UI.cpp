@@ -5,7 +5,7 @@
 UI::UI() {}
 UI::~UI() {}
 
-bool UI::Initialize(HWND hWnd, Viewport* viewport)
+bool UI::Initialize(HWND hWnd)
 {
 	// Create application window
 	ImGui_ImplWin32_EnableDpiAwareness();
@@ -42,6 +42,10 @@ bool UI::Frame()
 		ImGui::Begin("Editor Controls");
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / m_io->Framerate, m_io->Framerate);
 
+		ImGui::InputText("Model Path", m_fields.modelFile, sizeof(m_fields.modelFile));
+		if (ImGui::Button("Load Model")) {}
+
+		if (ImGui::Button("Capture Datapoint")) {}
 
 		ImGui::End();
 	}

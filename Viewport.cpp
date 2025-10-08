@@ -22,10 +22,58 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc)
 
 	ImGui_ImplDX11_Init(m_device.Get(), m_deviceContext.Get());
 
+	CreateRenderTarget();
+	InitializeDepth();
 
+	ID3D11RenderTargetView* rawRTV = m_renderTargetView.Get();
+	m_deviceContext->OMSetRenderTargets(1, &rawRTV, m_depthStencilView.Get());
+
+	InitializeRasterizer();
+
+	ResetViewport(m_screenWidth, m_screenHeight);
+
+	CreateSampler();
+
+	return true;
 }
 
+bool Viewport::Render()
+{
+	if (m_isSwapChainOccluded && m_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
+	{
+		::Sleep(10);
+		return false;
+	}
+	m_isSwapChainOccluded = false;
 
+	// Render 3D
+	ID3D11RenderTargetView* nullRTV = nullptr;
+	m_deviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
+
+	// Render UI
+	ID3D11RenderTargetView* rawRTV = m_renderTargetView.Get();
+	m_deviceContext->OMSetRenderTargets(1, &rawRTV, m_depthStencilView.Get());
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+	// Present
+	HRESULT hr = m_swapChain->Present(0, 0); // Without vsync
+	m_isSwapChainOccluded = (hr == DXGI_STATUS_OCCLUDED);
+	return true;
+}
+
+// ETC
+
+void Viewport::ResetViewport(float width, float height)
+{
+	m_dvp.Width = width;
+	m_dvp.Height = height;
+	m_dvp.MinDepth = 0.0f;
+	m_dvp.MaxDepth = 1.0f;
+	m_dvp.TopLeftX = 0.0f;
+	m_dvp.TopLeftY = 0.0f;
+
+	m_deviceContext->RSSetViewports(1, &m_dvp);
+}
 
 bool Viewport::InitializeDeviceD3D(HWND hWnd)
 {
@@ -50,7 +98,7 @@ bool Viewport::InitializeDeviceD3D(HWND hWnd)
 
 	sd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
 
-	sd.Flags = 0;
+	//sd.Flags = 0;
 
 	UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
 
@@ -143,6 +191,58 @@ bool Viewport::InitializeDepth()
 
 	depthStencilBuffer->Release();
 	depthStencilBuffer = nullptr;
+
+	return true;
+}
+
+bool Viewport::InitializeRasterizer()
+{
+	ID3D11RasterizerState* rasterState = nullptr;
+	D3D11_RASTERIZER_DESC rd;
+	ZeroMemory(&rd, sizeof(rd));
+	rd.AntialiasedLineEnable = false;
+	rd.CullMode = D3D11_CULL_BACK;
+	rd.DepthBias = 0;
+	rd.DepthBiasClamp = 0.0f;
+	rd.DepthClipEnable = true;
+	rd.FillMode = D3D11_FILL_SOLID;
+	rd.MultisampleEnable = false;
+	rd.ScissorEnable = false;
+	rd.SlopeScaledDepthBias = 0.0f;
+
+	HRESULT result = m_device->CreateRasterizerState(&rd, &rasterState);
+	if (FAILED(result))
+		return false;
+
+	m_deviceContext->RSSetState(rasterState);
+
+	rasterState->Release();
+	rasterState = nullptr;
+
+	return true;
+}
+
+bool Viewport::CreateSampler()
+{
+	D3D11_SAMPLER_DESC sd;
+	ZeroMemory(&sd, sizeof(sd));
+	sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sd.MipLODBias = 0.0f;
+	sd.MaxAnisotropy = 1;
+	sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+	sd.BorderColor[0] = 0;
+	sd.BorderColor[1] = 0;
+	sd.BorderColor[2] = 0;
+	sd.BorderColor[3] = 0;
+	sd.MinLOD = 0;
+	sd.MaxLOD = D3D11_FLOAT32_MAX;
+
+	HRESULT result = m_device->CreateSamplerState(&sd, &m_sampler);
+	if (FAILED(result))
+		return false;
 
 	return true;
 }

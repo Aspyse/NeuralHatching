@@ -23,7 +23,15 @@ private:
 
 	bool InitializeDepth();
 
+	bool InitializeRasterizer();
+
+	bool CreateSampler();
+
+	void ResetViewport(float width, float height);
+
 private:
+	bool m_isSwapChainOccluded = false;
+
 	ComPtr<IDXGISwapChain> m_swapChain;
 	ComPtr<ID3D11Device> m_device;
 	ComPtr<ID3D11DeviceContext> m_deviceContext;

@@ -15,7 +15,7 @@ public:
 	UI();
 	~UI();
 
-	bool Initialize(HWND hWnd, Viewport* viewport);
+	bool Initialize(HWND hWnd);
 	void Shutdown();
 	bool Frame();
 
