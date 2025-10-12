@@ -25,7 +25,7 @@ To be uploaded
 
 ```sh
 git clone https://github.com/Aspyse/NeuralHatching.git
-cd HalftoneDemo
+cd NeuralHatching
 ```
 
 
