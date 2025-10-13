@@ -4,6 +4,7 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
+#include <memory>
 #include <windows.h>
 #include "Camera.h"
 #include "Model.h"
@@ -24,11 +25,11 @@ private:
 	bool Frame();
 
 private:
-	Camera* m_camera = nullptr;
-	Model* m_model = nullptr;
-	Input* m_input = nullptr;
-	UI* m_ui = nullptr;
-	Viewport* m_viewport = nullptr;
+	std::unique_ptr<Camera> m_camera;
+	std::unique_ptr<Model> m_model;
+	std::unique_ptr<Input> m_input;
+	std::unique_ptr<UI> m_ui;
+	std::unique_ptr<Viewport> m_viewport;
 
 	WNDCLASSEXW m_wc = { 0 };
 	HWND m_hwnd = nullptr;

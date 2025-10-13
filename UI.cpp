@@ -45,6 +45,12 @@ bool UI::Frame()
 		ImGui::InputText("Model Path", m_fields.modelFile, sizeof(m_fields.modelFile));
 		if (ImGui::Button("Load Model")) {}
 
+		ImGui::Separator();
+
+		int currentIndex = static_cast<int>(m_currentMode);
+		if (ImGui::Combo("Shading Mode", &currentIndex, SHADING_MODE_NAMES, N_SHADING_MODES))
+			m_currentMode = static_cast<ShadingMode>(currentIndex);
+
 		if (ImGui::Button("Capture Datapoint")) {}
 
 		ImGui::End();
@@ -53,4 +59,14 @@ bool UI::Frame()
 	ImGui::Render();
 
 	return true;
+}
+
+char* UI::getFilename()
+{
+	return m_fields.modelFile;
+}
+
+UI::ShadingMode UI::getShadingMode()
+{
+	return m_currentMode;
 }

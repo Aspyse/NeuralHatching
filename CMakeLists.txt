@@ -1,7 +1,7 @@
 ﻿# CMakeList.txt : CMake project for NeuralHatching, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.8)
+cmake_minimum_required (VERSION 3.11) # 3.11 for FetchContent
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -10,6 +10,17 @@ if (POLICY CMP0141)
 endif()
 
 project ("NeuralHatching")
+
+# FetchContent
+include(FetchContent)
+
+FetchContent_Declare(
+	glm
+	GIT_REPOSITORY	https://github.com/g-truc/glm.git
+	GIT_TAG 	0af55ccecd98d4e5a8d1fad7de25ba429d60e863 #refs/tags/1.0.1
+)
+
+FetchContent_MakeAvailable(glm)
 
 # Add source to this project's executable.
 add_executable (NeuralHatching
@@ -33,7 +44,7 @@ add_executable (NeuralHatching
 	"Include/imgui/imgui_widgets.cpp"
 	"Include/imgui/backends/imgui_impl_dx11.cpp"
 	"Include/imgui/backends/imgui_impl_win32.cpp"
-)
+ "Model.cpp"  "Shaders/Nodes/ToScreenNode.h" "Shaders/Nodes/Node.h")
 
 target_include_directories (NeuralHatching PRIVATE
 	"${CMAKE_SOURCE_DIR}/include"
@@ -45,6 +56,8 @@ target_include_directories (NeuralHatching PRIVATE
 )
 
 target_link_libraries(NeuralHatching PRIVATE d3d11)
+
+target_link_libraries(NeuralHatching PRIVATE glm::glm)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET NeuralHatching PROPERTY CXX_STANDARD 20)

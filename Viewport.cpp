@@ -34,10 +34,12 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc)
 
 	CreateSampler();
 
+	// Initialize G-buffer
+
 	return true;
 }
 
-bool Viewport::Render()
+bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Model* model)
 {
 	if (m_isSwapChainOccluded && m_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
 	{
@@ -47,6 +49,8 @@ bool Viewport::Render()
 	m_isSwapChainOccluded = false;
 
 	// Render 3D
+	glm::vec3 lightNorm = glm::normalize(MATCAP_LIGHT);
+
 	ID3D11RenderTargetView* nullRTV = nullptr;
 	m_deviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
 
@@ -60,6 +64,18 @@ bool Viewport::Render()
 	m_isSwapChainOccluded = (hr == DXGI_STATUS_OCCLUDED);
 	return true;
 }
+
+ID3D11Device* Viewport::GetDevice()
+{
+	return m_device.Get();
+}
+
+ID3D11DeviceContext* Viewport::GetContext()
+{
+	return m_deviceContext.Get();
+}
+
+
 
 // ETC
 

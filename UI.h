@@ -6,6 +6,9 @@
 
 class UI
 {
+private:
+
+
 public:
 	struct UIFields
 	{
@@ -19,12 +22,15 @@ public:
 	void Shutdown();
 	bool Frame();
 
-	UIFields& getFields();
+	//UIFields& getFields();
+	char* getFilename();
+	ShadingMode getShadingMode();
 
 private:
 	ImGuiIO* m_io = nullptr;
 
 	UIFields m_fields;
+	ShadingMode m_currentMode = ShadingMode::Matcap;
 };
 
 static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

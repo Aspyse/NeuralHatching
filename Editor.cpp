@@ -5,8 +5,8 @@ Editor::Editor() {}
 bool Editor::Initialize()
 {
 	// Window init
-	const int SCREEN_WIDTH = 1280,
-		SCREEN_HEIGHT = 720;
+	const int SCREEN_WIDTH = 1024,
+		SCREEN_HEIGHT = 1024;
 	WNDCLASSEXW m_wc = { sizeof(m_wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Neural Hatching", nullptr };
 	::RegisterClassExW(&m_wc);
 	HWND m_hwnd = ::CreateWindowW(m_wc.lpszClassName, L"Neural Hatching", WS_OVERLAPPEDWINDOW, 100, 100, SCREEN_WIDTH, SCREEN_HEIGHT, nullptr, nullptr, m_wc.hInstance, nullptr);
@@ -15,16 +15,24 @@ bool Editor::Initialize()
 	::UpdateWindow(m_hwnd);
 
 	// System inits
-	m_ui = new UI;
-	m_viewport = new Viewport;
+	m_ui = std::make_unique<UI>();
+	m_viewport = std::make_unique<Viewport>();
 	m_ui->Initialize(m_hwnd);
 
-	m_input = new Input;
+	m_input = std::make_unique<Input>();
 	m_input->Initialize();
 
-	SetWindowLongPtr(m_hwnd, GWLP_USERDATA, (LONG_PTR)m_input);
+	SetWindowLongPtr(m_hwnd, GWLP_USERDATA, (LONG_PTR)m_input.get());
+
+	m_camera = std::make_unique<Camera>();
+	m_camera->SetAspect(80, SCREEN_WIDTH, SCREEN_HEIGHT);
+	m_camera->SetPosition(0.0f, 0.0f, -1.0f);
+	m_camera->Initialize();
 
 	m_viewport->Initialize(m_hwnd, m_wc);
+
+	m_model = std::make_unique<Model>();
+	m_model->Load(m_viewport->GetDevice(), "Models/bun_zipper.ply");
 
 	return true;
 }
@@ -70,7 +78,10 @@ bool Editor::Frame()
 	if (!result)
 		return false;
 
-	result = m_viewport->Render();
+	POINT delta = m_input->GetMouseDelta();
+
+	m_camera->Frame(delta.x, delta.y, m_input->GetScrollDelta(), m_input->IsMiddleMouseDown(), m_input->IsKeyDown(VK_SHIFT));
+	result = m_viewport->Render(m_camera->GetViewMatrix(), m_camera->GetProjectionMatrix(), m_model.get());
 	if (!result)
 		return false;
 
