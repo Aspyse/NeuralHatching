@@ -15,11 +15,11 @@
 class Editor
 {
 public:
-	Editor();
+	Editor() {};
 
 	bool Initialize();
 	void Run();
-	void Shutdown();
+	void Shutdown() const;
 
 private:
 	bool Frame();

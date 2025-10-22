@@ -132,11 +132,11 @@ void Camera::Zoom(float ds)
 
 glm::mat4x4 Camera::GetProjectionMatrix() const
 {
-	return glm::mat4x4();
+	return m_projectionMatrix;
 }
 
 glm::mat4x4 Camera::GetViewMatrix() const
 {
-	return glm::mat4x4();
+	return m_viewMatrix;
 }
 

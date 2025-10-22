@@ -15,22 +15,24 @@ public:
 		char modelFile[256] = "";
 	};
 
-	UI();
-	~UI();
+	UI() {};
+	~UI() {};
 
 	bool Initialize(HWND hWnd);
+	void BindControls(ShadingMode* currentMode);
+
 	void Shutdown();
 	bool Frame();
 
 	//UIFields& getFields();
-	char* getFilename();
-	ShadingMode getShadingMode();
+	char* GetFilename();
+	//ShadingMode GetShadingMode();
 
 private:
 	ImGuiIO* m_io = nullptr;
 
 	UIFields m_fields;
-	ShadingMode m_currentMode = ShadingMode::Matcap;
+	ShadingMode* m_currentMode = nullptr;
 };
 
 static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

@@ -10,8 +10,8 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc)
 	RECT rect;
 	GetClientRect(hwnd, &rect);
 
-	m_screenWidth = (float)rect.right - rect.left;
-	m_screenHeight = (float)rect.bottom - rect.top;
+	m_screenWidth = static_cast<UINT>(rect.right - rect.left);
+	m_screenHeight = static_cast<UINT>(rect.bottom - rect.top);
 
 	// Initialize Direct3D
 	if (!InitializeDeviceD3D(hwnd))
@@ -25,16 +25,20 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc)
 	CreateRenderTarget();
 	InitializeDepth();
 
-	ID3D11RenderTargetView* rawRTV = m_renderTargetView.Get();
-	m_deviceContext->OMSetRenderTargets(1, &rawRTV, m_depthStencilView.Get());
+	//ID3D11RenderTargetView* rtvPtr = m_renderTargetView.Get();
+	//m_deviceContext->OMSetRenderTargets(1, &rtvPtr, m_depthStencilView.Get());
 
 	InitializeRasterizer();
 
-	ResetViewport(m_screenWidth, m_screenHeight);
+	ResetViewport(static_cast<float>(m_screenWidth), static_cast<float>(m_screenHeight));
 
 	CreateSampler();
+	ID3D11SamplerState* samplerPtr = m_sampler.Get();
+	m_deviceContext->PSSetSamplers(0, 1, &samplerPtr);
 
-	// Initialize G-buffer
+	m_pipeline = std::make_unique<Pipeline>();
+	ID3D11RenderTargetView* rtvPtr = m_renderTargetView.Get();
+	m_pipeline->Initialize(m_device.Get(), rtvPtr, m_screenWidth, m_screenHeight);
 
 	return true;
 }
@@ -50,13 +54,17 @@ bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Mode
 
 	// Render 3D
 	glm::vec3 lightNorm = glm::normalize(MATCAP_LIGHT);
+	m_pipeline->Update(m_deviceContext.Get(), viewMatrix, projectionMatrix, lightNorm);
+	model->Render(m_deviceContext.Get());
+	m_pipeline->Render(m_deviceContext.Get(), model->GetIndexCount(), static_cast<int>(m_shadingMode));
 
+	// Unbind
 	ID3D11RenderTargetView* nullRTV = nullptr;
 	m_deviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
 
 	// Render UI
-	ID3D11RenderTargetView* rawRTV = m_renderTargetView.Get();
-	m_deviceContext->OMSetRenderTargets(1, &rawRTV, m_depthStencilView.Get());
+	ID3D11RenderTargetView* rtvPtr = m_renderTargetView.Get();
+	m_deviceContext->OMSetRenderTargets(1, &rtvPtr, m_depthStencilView.Get());
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
 	// Present
@@ -73,6 +81,11 @@ ID3D11Device* Viewport::GetDevice()
 ID3D11DeviceContext* Viewport::GetContext()
 {
 	return m_deviceContext.Get();
+}
+
+ShadingMode* Viewport::GetShadingMode()
+{
+	return &m_shadingMode;
 }
 
 

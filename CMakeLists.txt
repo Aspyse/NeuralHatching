@@ -22,6 +22,14 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glm)
 
+FetchContent_Declare(
+  DirectXTK
+  GIT_REPOSITORY https://github.com/microsoft/DirectXTK.git
+  GIT_TAG main
+)
+
+FetchContent_MakeAvailable(DirectXTK)
+
 # Add source to this project's executable.
 add_executable (NeuralHatching
 	"NeuralHatching.cpp"
@@ -44,9 +52,18 @@ add_executable (NeuralHatching
 	"Include/imgui/imgui_widgets.cpp"
 	"Include/imgui/backends/imgui_impl_dx11.cpp"
 	"Include/imgui/backends/imgui_impl_win32.cpp"
- "Model.cpp"  "Shaders/Nodes/ToScreenNode.h" "Shaders/Nodes/Node.h")
+	"Include/miniply/miniply.cpp"
+	"Model.cpp" 
+	"Shaders/Nodes/ToScreenNode.h"
+	"Shaders/Nodes/Node.h"
+	"Shaders/Nodes/Node.cpp"
+	"Shaders/Nodes/GeometryNode.cpp"
+	"Shaders/Nodes/GeometryNode.h"
+	"Pipeline.h"
+	"Pipeline.cpp")
 
 target_include_directories (NeuralHatching PRIVATE
+	"${CMAKE_SOURCE_DIR}/Shaders/Nodes"
 	"${CMAKE_SOURCE_DIR}/include"
 	"${CMAKE_SOURCE_DIR}/include/Eigen"
 	"${CMAKE_SOURCE_DIR}/include/LBFGSpp"
@@ -56,8 +73,43 @@ target_include_directories (NeuralHatching PRIVATE
 )
 
 target_link_libraries(NeuralHatching PRIVATE d3d11)
-
+target_link_libraries(NeuralHatching PRIVATE DirectXTK)
 target_link_libraries(NeuralHatching PRIVATE glm::glm)
+
+file(GLOB_RECURSE ALL_RESOURCES
+	"${CMAKE_SOURCE_DIR}/Shaders/*.hlsl"
+	"${CMAKE_SOURCE_DIR}/Models/*.ply"
+	"${CMAKE_SOURCE_DIR}/Models/*.glb")
+
+set(RESOURCE_OUTPUTS "")
+foreach(RESOURCE_FILE IN LISTS ALL_RESOURCES)
+  # Compute the path of RESOURCE_FILE relative to ${CMAKE_SOURCE_DIR}
+  file(RELATIVE_PATH REL_PATH "${CMAKE_SOURCE_DIR}" "${RESOURCE_FILE}")
+
+  set(DEST_PATH "${CMAKE_BINARY_DIR}/${REL_PATH}")
+
+  # Ensure DEST_PATH’s parent folder exists
+  get_filename_component(DEST_DIR "${DEST_PATH}" DIRECTORY)
+  file(MAKE_DIRECTORY "${DEST_DIR}")
+
+  # Copy-if-different rule
+  add_custom_command(
+    OUTPUT "${DEST_PATH}"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different "${RESOURCE_FILE}"
+            "${DEST_PATH}"
+    DEPENDS "${RESOURCE_FILE}"
+    COMMENT "Copying resource: ${REL_PATH}"
+    VERBATIM)
+
+  list(APPEND RESOURCE_OUTPUTS "${DEST_PATH}")
+endforeach()
+
+add_custom_target(
+  copy_resources ALL
+  DEPENDS ${RESOURCE_OUTPUTS}
+  COMMENT "Syncing changed resources")
+
+add_dependencies(NeuralHatching copy_resources)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
   set_property(TARGET NeuralHatching PROPERTY CXX_STANDARD 20)

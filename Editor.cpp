@@ -1,7 +1,5 @@
 #include "Editor.h"
 
-Editor::Editor() {}
-
 bool Editor::Initialize()
 {
 	// Window init
@@ -18,6 +16,7 @@ bool Editor::Initialize()
 	m_ui = std::make_unique<UI>();
 	m_viewport = std::make_unique<Viewport>();
 	m_ui->Initialize(m_hwnd);
+	m_ui->BindControls(m_viewport->GetShadingMode());
 
 	m_input = std::make_unique<Input>();
 	m_input->Initialize();
@@ -37,7 +36,7 @@ bool Editor::Initialize()
 	return true;
 }
 
-void Editor::Shutdown()
+void Editor::Shutdown() const
 {
 	::DestroyWindow(m_hwnd);
 	::UnregisterClassW(m_wc.lpszClassName, m_wc.hInstance);
@@ -80,7 +79,8 @@ bool Editor::Frame()
 
 	POINT delta = m_input->GetMouseDelta();
 
-	m_camera->Frame(delta.x, delta.y, m_input->GetScrollDelta(), m_input->IsMiddleMouseDown(), m_input->IsKeyDown(VK_SHIFT));
+	m_camera->Frame(static_cast<float>(delta.x), static_cast<float>(delta.y), m_input->GetScrollDelta(), m_input->IsMiddleMouseDown(), m_input->IsKeyDown(VK_SHIFT));
+
 	result = m_viewport->Render(m_camera->GetViewMatrix(), m_camera->GetProjectionMatrix(), m_model.get());
 	if (!result)
 		return false;

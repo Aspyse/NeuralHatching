@@ -33,13 +33,13 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
 {
     const float PI = 3.14159;
     const float4 COLOR = float4(0.5, 0.5, 0.5, 1);
-    const float3 AMBIENT = float3(0.1, 0.1, 0.1);
-    const float ALPHA = 0.5;
+    const float3 AMBIENT = float3(0.1, 0.3, 0.3);
+    const float ROUGHNESS = 0.5;
     
     float4 albedo = COLOR;
     float4 nr = normalTexture.Sample(pointClamp, input.uv);
     float3 normal = normalize(nr.rgb * 2 - 1);
-    float alpha = max(ALPHA, 0.01);
+    float alpha = max(ROUGHNESS, 0.01);
     alpha *= alpha;
 
     float3 viewPos = ReconstructViewPos(input.uv);
@@ -53,7 +53,8 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
 	//return float4(shadowMap.SampleLevel(pointClamp, input.uv, 0).rrr,1);
 
 	// AMBIENT
-    float4 ambient = albedo * float4(AMBIENT, 1);
+    //float4 ambient = albedo * float4(AMBIENT, 1);
+    float4 ambient = float4(AMBIENT, 1);
     float depth = depthTexture.Sample(pointClamp, input.uv).r;
     if (depth == 1)
         return ambient;

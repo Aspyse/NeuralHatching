@@ -15,12 +15,27 @@ bool Model::Load(ID3D11Device* device, const char* filename)
 
 	if (!CreateBuffers(device)) return false;
 
+
+
 	return true;
 }
 
 void Model::Render(ID3D11DeviceContext* deviceContext)
 {
+	UINT stride = sizeof(Vertex);
+	UINT offset = 0;
+
+	deviceContext->IASetVertexBuffers(0, 1, &m_vertexBuffer, &stride, &offset);
+
+	// Set type of primitive to be rendered
+	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	
 	deviceContext->IASetIndexBuffer(m_indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+}
+
+int Model::GetIndexCount()
+{
+	return static_cast<int>(m_indices.size());
 }
 
 bool Model::LoadPLY(const char* filename)
@@ -124,7 +139,7 @@ bool Model::CreateBuffers(ID3D11Device* device)
 	D3D11_BUFFER_DESC ibd;
 	ZeroMemory(&ibd, sizeof(ibd));
 	ibd.Usage = D3D11_USAGE_DEFAULT;
-	ibd.ByteWidth = sizeof(uint32_t) * m_indices.size();
+	ibd.ByteWidth = sizeof(uint32_t) * static_cast<UINT>(m_indices.size());
 	ibd.BindFlags = D3D11_BIND_INDEX_BUFFER;
 	ibd.CPUAccessFlags = 0;
 	ibd.MiscFlags = 0;

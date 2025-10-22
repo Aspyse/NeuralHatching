@@ -2,9 +2,6 @@
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 
-UI::UI() {}
-UI::~UI() {}
-
 bool UI::Initialize(HWND hWnd)
 {
 	// Create application window
@@ -23,6 +20,11 @@ bool UI::Initialize(HWND hWnd)
 	ImGui_ImplWin32_Init(hWnd);
 
 	return true; // TEMP
+}
+
+void UI::BindControls(ShadingMode* currentMode)
+{
+	m_currentMode = currentMode;
 }
 
 void UI::Shutdown()
@@ -47,9 +49,9 @@ bool UI::Frame()
 
 		ImGui::Separator();
 
-		int currentIndex = static_cast<int>(m_currentMode);
+		int currentIndex = static_cast<int>(*m_currentMode);
 		if (ImGui::Combo("Shading Mode", &currentIndex, SHADING_MODE_NAMES, N_SHADING_MODES))
-			m_currentMode = static_cast<ShadingMode>(currentIndex);
+			*m_currentMode = static_cast<ShadingMode>(currentIndex);
 
 		if (ImGui::Button("Capture Datapoint")) {}
 
@@ -61,12 +63,14 @@ bool UI::Frame()
 	return true;
 }
 
-char* UI::getFilename()
+char* UI::GetFilename()
 {
 	return m_fields.modelFile;
 }
 
-UI::ShadingMode UI::getShadingMode()
+/*
+ShadingMode UI::GetShadingMode()
 {
 	return m_currentMode;
 }
+*/

@@ -11,7 +11,6 @@ struct VertexInputType
     float2 uv : TEXCOORD0;
     float hatch : TEXCOORD1;
     float3 normal : NORMAL;
-    float4 tangent : TANGENT;
 };
 
 struct PixelInputType
@@ -35,12 +34,15 @@ PixelInputType GeometryVertexShader(VertexInputType input)
     
     output.normal = N;
     
+    // output cross field
+    
     return output;
 }
 
 struct PixelOutputType
 {
-    float4 normal : SV_Target0;
+    float3 normal : SV_Target0;
+    float3 hatch : SV_Target1;
 };
 
 PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
@@ -49,7 +51,11 @@ PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
 
     float3 normal = mul(normalize(input.normal), (float3x3) viewMatrix);
     normal = normal * 0.5f + 0.5f;
-    output.normal = float4(normal, 1);
+    
+    // hatch field placeholder
+    float hatch = 1;
+    output.normal = normal;
+    output.hatch = float3(hatch, hatch, hatch);
 
     return output;
 }

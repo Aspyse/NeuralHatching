@@ -2,20 +2,22 @@
 
 #include <d3d11.h>
 #include <glm/mat4x4.hpp>
+#include <memory>
 #include <windows.h>
 #include <wrl/client.h>
 #include "Model.h"
+#include "Pipeline.h"
 
 using Microsoft::WRL::ComPtr;
 
 const int N_SHADING_MODES = 4;
-const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
+inline const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
 	"Matcap",
 	"Normals",
 	"Depth",
 	"Cross Field"
 };
-const enum class ShadingMode : int
+enum class ShadingMode : int
 {
 	Matcap = 0,
 	Normal = 1,
@@ -35,6 +37,7 @@ public:
 
 	ID3D11Device* GetDevice();
 	ID3D11DeviceContext* GetContext();
+	ShadingMode* GetShadingMode();
 
 private:
 	bool InitializeDeviceD3D(HWND hWnd);
@@ -53,6 +56,10 @@ private:
 	const glm::vec3 MATCAP_LIGHT = { 0.1f, -1.0f, 0.05f };
 
 	bool m_isSwapChainOccluded = false;
+
+	ShadingMode m_shadingMode = ShadingMode::Matcap;
+
+	std::unique_ptr<Pipeline> m_pipeline;
 
 	ComPtr<IDXGISwapChain> m_swapChain;
 	ComPtr<ID3D11Device> m_device;
