@@ -1,5 +1,5 @@
-Texture2D normalTexture : register(t1);
-Texture2D depthTexture : register(t2);
+Texture2D normalTexture : register(t0);
+Texture2D depthTexture : register(t1);
 
 SamplerState pointClamp : register(s0);
 
@@ -32,9 +32,9 @@ float3 ReconstructViewPos(float2 uv)
 float4 PostprocessShader(PixelInputType input) : SV_TARGET
 {
     const float PI = 3.14159;
-    const float4 COLOR = float4(0.5, 0.5, 0.5, 1);
+    const float4 COLOR = float4(2, 2, 2, 1);
     const float3 AMBIENT = float3(0.1, 0.3, 0.3);
-    const float ROUGHNESS = 0.5;
+    const float ROUGHNESS = 0.2;
     
     float4 albedo = COLOR;
     float4 nr = normalTexture.Sample(pointClamp, input.uv);
@@ -85,10 +85,8 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
     // lambertian diffuse
     float3 diffuse = (1.0 - F) * albedo / PI;
 
-	// cel step
-    specular = (specular > 0.5) ? 1.0 : 0.0;
-
     float3 color = (diffuse + specular) * NdotL;
 
+    //return normalTexture.Sample(pointClamp, input.uv);
     return float4(color, 1) + ambient;
 };

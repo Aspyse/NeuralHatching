@@ -25,7 +25,8 @@ void Model::Render(ID3D11DeviceContext* deviceContext)
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 
-	deviceContext->IASetVertexBuffers(0, 1, &m_vertexBuffer, &stride, &offset);
+	ID3D11Buffer* vertexBufferPtr = m_vertexBuffer.Get();
+	deviceContext->IASetVertexBuffers(0, 1, &vertexBufferPtr, &stride, &offset);
 
 	// Set type of primitive to be rendered
 	deviceContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

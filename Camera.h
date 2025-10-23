@@ -26,8 +26,8 @@ public:
 	glm::mat4x4 GetViewMatrix() const;
 
 private:
-	const float ORBIT_SENSITIVITY = 0.23f;
-	const float PAN_SENSITIVITY = 0.0006f;
+	const float ORBIT_SENSITIVITY = 0.28f;
+	const float PAN_SENSITIVITY = 0.0012f;
 	const float ZOOM_SENSITIVITY = 0.0005f;
 
 	glm::vec3 m_position = { 0.0f, 0.0f, 0.0f };

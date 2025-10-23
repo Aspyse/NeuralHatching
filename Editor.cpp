@@ -26,6 +26,7 @@ bool Editor::Initialize()
 	m_camera = std::make_unique<Camera>();
 	m_camera->SetAspect(80, SCREEN_WIDTH, SCREEN_HEIGHT);
 	m_camera->SetPosition(0.0f, 0.0f, -1.0f);
+	m_camera->SetPlanes(0.1f, 1000.0f);
 	m_camera->Initialize();
 
 	m_viewport->Initialize(m_hwnd, m_wc);
@@ -79,7 +80,7 @@ bool Editor::Frame()
 
 	POINT delta = m_input->GetMouseDelta();
 
-	m_camera->Frame(static_cast<float>(delta.x), static_cast<float>(delta.y), m_input->GetScrollDelta(), m_input->IsMiddleMouseDown(), m_input->IsKeyDown(VK_SHIFT));
+	m_camera->Frame(static_cast<float>(-delta.x), static_cast<float>(-delta.y), m_input->GetScrollDelta(), m_input->IsMiddleMouseDown(), m_input->IsKeyDown(VK_SHIFT));
 
 	result = m_viewport->Render(m_camera->GetViewMatrix(), m_camera->GetProjectionMatrix(), m_model.get());
 	if (!result)

@@ -49,11 +49,12 @@ PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
 {
     PixelOutputType output;
 
-    float3 normal = mul(normalize(input.normal), (float3x3) viewMatrix);
+    float3 normal = mul((float3x3) viewMatrix, normalize(input.normal));
     normal = normal * 0.5f + 0.5f;
     
     // hatch field placeholder
     float hatch = 1;
+    
     output.normal = normal;
     output.hatch = float3(hatch, hatch, hatch);
 

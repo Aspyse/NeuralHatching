@@ -21,27 +21,38 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 
 	m_geometryNode->AddVSConstantBuffer<MatrixBuffer>(device);
 	m_matcapNode->AddPSConstantBuffer<MatcapBuffer>(device);
+
+	InitializeDepthTarget(device, textureWidth, textureHeight);
 }
 
 // sidenote: probably the most elegant method i've tried so far
 void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection)
 {
 	MatrixBuffer matrixBuffer;
-	matrixBuffer.worldMatrix = glm::mat4x4(1.0f); // TODO: replace identity matrix
-	matrixBuffer.viewMatrix = viewMatrix;
-	matrixBuffer.projectionMatrix = projectionMatrix;
+	matrixBuffer.worldMatrix = glm::transpose(glm::mat4x4(1.0f)); // TODO: replace identity matrix
+	matrixBuffer.viewMatrix = glm::transpose(viewMatrix);
+	matrixBuffer.projectionMatrix = glm::transpose(projectionMatrix);
 
 	MatcapBuffer matcapBuffer;
-	matcapBuffer.invProj = glm::inverse(projectionMatrix);
-	matcapBuffer.invView = glm::inverse(viewMatrix);
-	matcapBuffer.lightDirectionVS = glm::mat3(viewMatrix) * lightDirection; // TODO: test correctness
+	matcapBuffer.invProj = glm::transpose(glm::inverse(projectionMatrix));
+	matcapBuffer.invView = glm::transpose(glm::inverse(viewMatrix));
+	matcapBuffer.lightDirectionVS = glm::mat3(viewMatrix) * glm::normalize(lightDirection); // TODO: test correctness
 
 	m_geometryNode->UpdateVSConstantBuffer<MatrixBuffer>(deviceContext, matrixBuffer, 0);
 	m_matcapNode->UpdatePSConstantBuffer<MatcapBuffer>(deviceContext, matcapBuffer, 0);
 }
 
 void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int shadingMode)
-{
+{	
+	deviceContext->OMSetDepthStencilState(nullptr, 0);
+	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	deviceContext->ClearDepthStencilView(m_depthSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+	deviceContext->ClearRenderTargetView(m_normalRTV.Get(), clearColor);
+	deviceContext->ClearRenderTargetView(m_hatchRTV.Get(), clearColor);
+	deviceContext->ClearRenderTargetView(m_matcapRTV.Get(), clearColor);
+
+	ID3D11ShaderResourceView* nullSRV[] = { nullptr, nullptr };
+	deviceContext->PSSetShaderResources(0, 2, nullSRV);
 	// Bind g-buffer RTV and depth
 	ID3D11RenderTargetView* gbufferRTVPtr[] = {
 		m_normalRTV.Get(),
@@ -52,6 +63,8 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int sh
 	m_geometryNode->Render(deviceContext);
 	// Draw model indices
 	deviceContext->DrawIndexed(indexCount, 0, 0);
+
+	Unbind(deviceContext);
 
 	// Bind matcap RTV
 	ID3D11RenderTargetView* matcapRTVPtr = m_matcapRTV.Get();
@@ -66,6 +79,8 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int sh
 	m_matcapNode->Render(deviceContext);
 	// Draw fullscreen tri
 	deviceContext->Draw(3, 0);
+
+	Unbind(deviceContext);
 
 	// Bind out RTV
 	ID3D11RenderTargetView* outRTVPtr = m_outRTV.Get();
@@ -92,8 +107,15 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int sh
 	m_outNode->Render(deviceContext);
 	// Draw fullscreen tri
 	deviceContext->Draw(3, 0);
+
+	Unbind(deviceContext);
 }
 
+void Pipeline::Unbind(ID3D11DeviceContext* deviceContext)
+{
+	ID3D11RenderTargetView* nullRTV[] = {nullptr, nullptr};
+	deviceContext->OMSetRenderTargets(2, nullRTV, nullptr);
+}
 
 bool Pipeline::CreateRenderTarget(ID3D11Device* device, ID3D11RenderTargetView** rtv, ID3D11ShaderResourceView** srv, int textureWidth, int textureHeight)
 {

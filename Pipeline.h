@@ -41,6 +41,8 @@ private:
 
 	bool InitializeDepthTarget(ID3D11Device* device, int textureWidth, int textureHeight);
 
+	void Unbind(ID3D11DeviceContext* deviceContext);
+
 private:
 	ComPtr<ID3D11SamplerState> m_sampler;
 

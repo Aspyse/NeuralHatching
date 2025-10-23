@@ -17,10 +17,9 @@ private:
 	{
 		glm::vec3 position;
 		glm::vec2 uv;
+		float crossAngle;
 		glm::vec3 normal;
 		//glm::vec4 tangent;
-
-		float crossAngle;
 	};
 
 public:

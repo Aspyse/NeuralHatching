@@ -59,8 +59,8 @@ bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Mode
 	m_pipeline->Render(m_deviceContext.Get(), model->GetIndexCount(), static_cast<int>(m_shadingMode));
 
 	// Unbind
-	ID3D11RenderTargetView* nullRTV = nullptr;
-	m_deviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
+	//ID3D11RenderTargetView* nullRTV = nullptr;
+	//m_deviceContext->OMSetRenderTargets(1, &nullRTV, nullptr);
 
 	// Render UI
 	ID3D11RenderTargetView* rtvPtr = m_renderTargetView.Get();
