@@ -55,11 +55,11 @@ LRESULT CALLBACK Input::MessageHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARA
 		return 0;
 
 	case WM_KEYDOWN:
-		if (m_io->WantCaptureKeyboard) return 0;
+		//if (m_io->WantCaptureKeyboard) return 0;
 		SetKeyDown((UINT)wParam);
 		return 0;
 	case WM_KEYUP:
-		if (m_io->WantCaptureKeyboard) return 0;
+		//if (m_io->WantCaptureKeyboard) return 0;
 		SetKeyUp((UINT)wParam);
 		return 0;
 

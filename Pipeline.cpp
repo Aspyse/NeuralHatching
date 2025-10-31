@@ -45,11 +45,10 @@ void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix
 void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int shadingMode)
 {	
 	deviceContext->OMSetDepthStencilState(nullptr, 0);
-	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	deviceContext->ClearDepthStencilView(m_depthSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
-	deviceContext->ClearRenderTargetView(m_normalRTV.Get(), clearColor);
-	deviceContext->ClearRenderTargetView(m_hatchRTV.Get(), clearColor);
-	deviceContext->ClearRenderTargetView(m_matcapRTV.Get(), clearColor);
+	deviceContext->ClearRenderTargetView(m_normalRTV.Get(), CLEAR_COLOR);
+	deviceContext->ClearRenderTargetView(m_hatchRTV.Get(), CLEAR_COLOR);
+	deviceContext->ClearRenderTargetView(m_matcapRTV.Get(), CLEAR_COLOR);
 
 	ID3D11ShaderResourceView* nullSRV[] = { nullptr, nullptr };
 	deviceContext->PSSetShaderResources(0, 2, nullSRV);

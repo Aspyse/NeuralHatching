@@ -28,7 +28,7 @@ bool Editor::Initialize()
 	m_camera->SetPosition(0.0f, 0.0f, -1.0f);
 	m_camera->SetPlanes(0.1f, 1000.0f);
 	m_camera->Initialize();
-
+	
 	m_viewport->Initialize(m_hwnd, m_wc);
 
 	m_model = std::make_unique<Model>();

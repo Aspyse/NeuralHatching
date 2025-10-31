@@ -10,6 +10,8 @@
 
 using Microsoft::WRL::ComPtr;
 
+struct CurvatureInfo;
+
 class Model
 {
 private:
@@ -22,7 +24,26 @@ private:
 		//glm::vec4 tangent;
 	};
 
+	// TODO: strange, consider refactoring
+	struct CurvatureInfo
+	{
+		bool reliable = false;
+		//glm::vec3 hatchDir = glm::vec3(0.0f);
+		float kappa1;        // Maximum principal curvature
+		float kappa2;        // Minimum principal curvature
+		float theta = 0;
+
+		// Curvature directions (3D)
+		glm::vec3 dir1;
+		glm::vec3 dir2;
+
+		glm::vec3 tangent_u; // Reference tangent direction for angle measurement
+		glm::vec3 tangent_v; // Perpendicular tangent direction
+	};
+
 public:
+	friend class Curvature;
+
 	Model();
 	~Model();
 
@@ -34,6 +55,7 @@ public:
 
 private:
 	void CalculateNormals();
+	void CalculateCrossField();
 	bool CreateBuffers(ID3D11Device* device);
 	bool LoadPLY(const char* filename);
 
@@ -44,4 +66,6 @@ private:
 	std::vector<Vertex> m_vertices;
 	std::vector<uint32_t> m_indices;
 
+	std::vector<CurvatureInfo> m_curvatures;
+	glm::vec4 m_tangent;
 };

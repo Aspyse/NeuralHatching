@@ -44,6 +44,8 @@ private:
 	void Unbind(ID3D11DeviceContext* deviceContext);
 
 private:
+	const float CLEAR_COLOR[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+
 	ComPtr<ID3D11SamplerState> m_sampler;
 
 	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_matcapRTV, m_outRTV;

@@ -1,4 +1,5 @@
 #include "Model.h"
+#include "Curvature.h"
 #include <miniply.h>
 
 Model::Model() {}
@@ -13,9 +14,12 @@ bool Model::Load(ID3D11Device* device, const char* filename)
 	for (uint32_t i = 0; i < m_vertexCount; ++i)
 		m_vertices[i].uv = glm::vec2(0.0f, 0.0f);
 
+	CalculateCrossField();
+
+
+
+
 	if (!CreateBuffers(device)) return false;
-
-
 
 	return true;
 }
@@ -114,6 +118,22 @@ void Model::CalculateNormals()
 	// Normalize the accumulated normals for each vertex
 	for (uint32_t i = 0; i < m_vertexCount; ++i)
 		m_vertices[i].normal = glm::normalize(m_vertices[i].normal);
+}
+
+void Model::CalculateCrossField()
+{
+	// Initialize all cross angles to zero
+	/*
+	for (uint32_t i = 0; i < m_vertexCount; ++i)
+		m_vertices[i].crossAngle = 0.66f;
+	*/
+
+	// TODO: check if idiomatic
+	Curvature* c = new Curvature();
+	c->InitializeField(*this);
+
+	for (uint32_t i = 0; i < m_vertexCount; ++i)
+		m_vertices[i].crossAngle = m_curvatures[i].theta;
 }
 
 bool Model::CreateBuffers(ID3D11Device* device)

@@ -60,7 +60,7 @@ add_executable (NeuralHatching
 	"Shaders/Nodes/GeometryNode.cpp"
 	"Shaders/Nodes/GeometryNode.h"
 	"Pipeline.h"
-	"Pipeline.cpp")
+	"Pipeline.cpp" "Curvature.h" "Curvature.cpp")
 
 target_include_directories (NeuralHatching PRIVATE
 	"${CMAKE_SOURCE_DIR}/Shaders/Nodes"
@@ -112,7 +112,7 @@ add_custom_target(
 add_dependencies(NeuralHatching copy_resources)
 
 if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET NeuralHatching PROPERTY CXX_STANDARD 20)
+  set_property(TARGET NeuralHatching PROPERTY CXX_STANDARD 17)
 endif()
 
 set_target_properties(NeuralHatching PROPERTIES WIN32_EXECUTABLE TRUE)

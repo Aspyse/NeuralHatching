@@ -17,6 +17,8 @@ struct PixelInputType
 {
     float4 position : SV_POSITION;
     float2 uv : TEXCOORD0;
+    nointerpolation float hatch : TEXCOORD1;
+    //float hatch : TEXCOORD1;
     float3 normal : NORMAL;
 };
 
@@ -35,6 +37,7 @@ PixelInputType GeometryVertexShader(VertexInputType input)
     output.normal = N;
     
     // output cross field
+    output.hatch = input.hatch;
     
     return output;
 }
@@ -53,10 +56,10 @@ PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
     normal = normal * 0.5f + 0.5f;
     
     // hatch field placeholder
-    float hatch = 1;
+    float hatch = input.hatch;
     
     output.normal = normal;
-    output.hatch = float3(hatch, hatch, hatch);
+    output.hatch = float3(hatch, 0, 0);
 
     return output;
 }
