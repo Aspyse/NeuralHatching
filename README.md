@@ -1,5 +1,5 @@
 <h1 align="center">
-  Neural Hatching
+  Neural Hatching: Computing Real-time Cross Fields Using Deep Convolutional Networks
 </h1>
 
 <h5 align="center">
@@ -16,7 +16,9 @@
 
 ## Video Demo
 
-To be uploaded
+https://github.com/user-attachments/assets/573d3bbb-b8a8-4ef8-b994-e7fcb6d6235b
+
+
 
 
 ## Setup
@@ -52,4 +54,8 @@ In a command prompt, run:
 ## Libraries Used
 
 - [miniPLY](https://github.com/vilya/miniply)
+- [DirectX Tool Kit](https://github.com/microsoft/DirectXTK)
+- [OpenGL Mathematics (GLM)](https://github.com/g-truc/glm)
+- [Eigen](https://github.com/PX4/eigen)
+- [LBFGSpp](https://github.com/yixuan/LBFGSpp)
 
