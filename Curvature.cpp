@@ -85,6 +85,8 @@ Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentIndex, const std:
 	float M = glm::dot(Fuv, n);
 	float N = glm::dot(Fvv, n);
 
+	//printf("Vertex %d: E=%.6f, F=%.6f, G=%.6f, L=%.6f, M=%.6f, N=%.6f\n", currentIndex, E, F, G, L, M, N);
+
 	// Build matrices for equation (2): First * Second
 	Eigen::Matrix2f first;
 	first << E, F,
@@ -196,6 +198,7 @@ std::vector<uint32_t> Curvature::FindOneRing(uint32_t currentIndex, std::vector<
 		prev = curr;
 		if (next == start)
 			break;
+		curr = next;
 	}
 
 	return ordered;
