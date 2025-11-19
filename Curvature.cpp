@@ -136,10 +136,12 @@ Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentIndex, const std:
 	}
 	// Encode primary direction as angle in tangent plane
 	// This is how the paper represents the cross field in Section 5
-	//result.theta = directionToAngle(result.dir1, tangent_u, tangent_v);
+	result.theta = directionToAngle(result.dir1, tangent_u, tangent_v);
 
-
-	result.theta = result.kappa2 / result.kappa1;
+	result.reliable = (std::abs(result.kappa2 / result.kappa1) <= RELIABLE_THRESHOLD) && (std::abs(result.kappa1) >= CURVATURE_THRESHOLD);
+	//result.theta = std::abs(result.kappa2 / result.kappa1) < 0.5;
+	//result.theta = std::abs(result.kappa1) >= 200;
+	//result.theta = result.kappa2 / result.kappa1;
 
 
 	return result;

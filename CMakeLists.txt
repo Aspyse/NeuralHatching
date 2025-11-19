@@ -60,7 +60,7 @@ add_executable (NeuralHatching
 	"Shaders/Nodes/GeometryNode.cpp"
 	"Shaders/Nodes/GeometryNode.h"
 	"Pipeline.h"
-	"Pipeline.cpp" "Curvature.h" "Curvature.cpp")
+	"Pipeline.cpp" "Curvature.h" "Curvature.cpp" )
 
 target_include_directories (NeuralHatching PRIVATE
 	"${CMAKE_SOURCE_DIR}/Shaders/Nodes"

@@ -22,9 +22,9 @@ bool UI::Initialize(HWND hWnd)
 	return true; // TEMP
 }
 
-void UI::BindControls(ShadingMode* currentMode)
+void UI::BindControls(Viewport* viewport)
 {
-	m_currentMode = currentMode;
+	m_viewport = viewport;
 }
 
 void UI::Shutdown()
@@ -49,11 +49,15 @@ bool UI::Frame()
 
 		ImGui::Separator();
 
-		int currentIndex = static_cast<int>(*m_currentMode);
+		ShadingMode* currentMode = m_viewport->GetShadingMode();
+		int currentIndex = static_cast<int>(*currentMode);
 		if (ImGui::Combo("Shading Mode", &currentIndex, SHADING_MODE_NAMES, N_SHADING_MODES))
-			*m_currentMode = static_cast<ShadingMode>(currentIndex);
+			*currentMode = static_cast<ShadingMode>(currentIndex);
 
-		if (ImGui::Button("Capture Datapoint")) {}
+		if (ImGui::Button("Capture Datapoint"))
+		{
+			m_viewport->CaptureDatapoint();
+		}
 
 		ImGui::End();
 	}

@@ -5,9 +5,25 @@ bool Editor::Initialize()
 	// Window init
 	const int SCREEN_WIDTH = 1024,
 		SCREEN_HEIGHT = 1024;
+	const float NEAR_PLANE = 0.01f,
+		FAR_PLANE = 0.5f;
 	WNDCLASSEXW m_wc = { sizeof(m_wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Neural Hatching", nullptr };
 	::RegisterClassExW(&m_wc);
-	HWND m_hwnd = ::CreateWindowW(m_wc.lpszClassName, L"Neural Hatching", WS_OVERLAPPEDWINDOW, 100, 100, SCREEN_WIDTH, SCREEN_HEIGHT, nullptr, nullptr, m_wc.hInstance, nullptr);
+
+	// Compute window size that will give the requested *client* area
+	RECT rc = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
+	DWORD style = WS_OVERLAPPEDWINDOW;
+	DWORD exStyle = 0; // or WS_EX_APPWINDOW, etc.
+	BOOL hasMenu = FALSE; // change if you create a menu
+
+	if (!AdjustWindowRectEx(&rc, style, hasMenu, exStyle)) {
+		// handle error (GetLastError())
+	}
+
+	int winWidth = rc.right - rc.left;
+	int winHeight = rc.bottom - rc.top;
+
+	HWND m_hwnd = ::CreateWindowW(m_wc.lpszClassName, L"Neural Hatching", WS_OVERLAPPEDWINDOW, 100, 100, winWidth, winHeight, nullptr, nullptr, m_wc.hInstance, nullptr);
 
 	::ShowWindow(m_hwnd, SW_SHOWDEFAULT);
 	::UpdateWindow(m_hwnd);
@@ -16,7 +32,7 @@ bool Editor::Initialize()
 	m_ui = std::make_unique<UI>();
 	m_viewport = std::make_unique<Viewport>();
 	m_ui->Initialize(m_hwnd);
-	m_ui->BindControls(m_viewport->GetShadingMode());
+	m_ui->BindControls(m_viewport.get());
 
 	m_input = std::make_unique<Input>();
 	m_input->Initialize();
@@ -26,10 +42,10 @@ bool Editor::Initialize()
 	m_camera = std::make_unique<Camera>();
 	m_camera->SetAspect(80, SCREEN_WIDTH, SCREEN_HEIGHT);
 	m_camera->SetPosition(0.0f, 0.0f, -1.0f);
-	m_camera->SetPlanes(0.1f, 1000.0f);
+	m_camera->SetPlanes(NEAR_PLANE, FAR_PLANE);
 	m_camera->Initialize();
 	
-	m_viewport->Initialize(m_hwnd, m_wc);
+	m_viewport->Initialize(m_hwnd, m_wc, NEAR_PLANE, FAR_PLANE);
 
 	m_model = std::make_unique<Model>();
 	m_model->Load(m_viewport->GetDevice(), "Models/bun_zipper.ply");

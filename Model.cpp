@@ -132,8 +132,13 @@ void Model::CalculateCrossField()
 	Curvature* c = new Curvature();
 	c->InitializeField(*this);
 
-	for (uint32_t i = 0; i < m_vertexCount; ++i)
-		m_vertices[i].crossAngle = m_curvatures[i].theta;
+	for (uint32_t i = 0; i < m_vertexCount; ++i) {
+		//m_vertices[i].crossAngle.x = m_curvatures[i].theta;
+		m_vertices[i].reliability = m_curvatures[i].reliable;
+		//m_vertices[i].reliability = m_curvatures[i].theta;
+		m_vertices[i].crossAngle = m_curvatures[i].dir1;
+		m_vertices[i].crossAngle2 = m_curvatures[i].dir2;
+	}
 }
 
 bool Model::CreateBuffers(ID3D11Device* device)
