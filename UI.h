@@ -19,7 +19,7 @@ public:
 	~UI() {};
 
 	bool Initialize(HWND hWnd);
-	void BindControls(ShadingMode* currentMode);
+	void BindControls(Viewport* viewport);
 
 	void Shutdown();
 	bool Frame();
@@ -32,7 +32,7 @@ private:
 	ImGuiIO* m_io = nullptr;
 
 	UIFields m_fields;
-	ShadingMode* m_currentMode = nullptr;
+	Viewport* m_viewport = nullptr;
 };
 
 static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

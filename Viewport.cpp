@@ -5,8 +5,11 @@
 Viewport::Viewport() {};
 Viewport::~Viewport() {};
 
-bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc)
+bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc, float nearPlane, float farPlane)
 {
+	m_near = nearPlane;
+	m_far = farPlane;
+	
 	RECT rect;
 	GetClientRect(hwnd, &rect);
 
@@ -54,7 +57,7 @@ bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Mode
 
 	// Render 3D
 	glm::vec3 lightNorm = glm::normalize(MATCAP_LIGHT);
-	m_pipeline->Update(m_deviceContext.Get(), viewMatrix, projectionMatrix, lightNorm);
+	m_pipeline->Update(m_deviceContext.Get(), viewMatrix, projectionMatrix, lightNorm, m_near, m_far);
 	model->Render(m_deviceContext.Get());
 	m_pipeline->Render(m_deviceContext.Get(), model->GetIndexCount(), static_cast<int>(m_shadingMode));
 
@@ -86,6 +89,11 @@ ID3D11DeviceContext* Viewport::GetContext()
 ShadingMode* Viewport::GetShadingMode()
 {
 	return &m_shadingMode;
+}
+
+void Viewport::CaptureDatapoint()
+{
+	m_pipeline->CaptureDatapoint(m_deviceContext.Get());
 }
 
 

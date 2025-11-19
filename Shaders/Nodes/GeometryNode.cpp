@@ -3,7 +3,7 @@
 bool GeometryNode::InitializeInputLayout(ID3D11Device* device, ID3D10Blob* vertexShaderBuffer)
 {
 	// Define input layout
-    D3D11_INPUT_ELEMENT_DESC pl[4];
+    D3D11_INPUT_ELEMENT_DESC pl[6];
     pl[0].SemanticName = "POSITION";
     pl[0].SemanticIndex = 0;
     pl[0].Format = DXGI_FORMAT_R32G32B32_FLOAT;
@@ -22,19 +22,35 @@ bool GeometryNode::InitializeInputLayout(ID3D11Device* device, ID3D10Blob* verte
 
     pl[2].SemanticName = "TEXCOORD";
     pl[2].SemanticIndex = 1;
-    pl[2].Format = DXGI_FORMAT_R32_FLOAT;
+    pl[2].Format = DXGI_FORMAT_R32G32B32_FLOAT;
     pl[2].InputSlot = 0;
     pl[2].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
     pl[2].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
     pl[2].InstanceDataStepRate = 0;
 
-    pl[3].SemanticName = "NORMAL";
-    pl[3].SemanticIndex = 0;
+    pl[3].SemanticName = "TEXCOORD";
+    pl[3].SemanticIndex = 2;
     pl[3].Format = DXGI_FORMAT_R32G32B32_FLOAT;
     pl[3].InputSlot = 0;
     pl[3].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
     pl[3].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
     pl[3].InstanceDataStepRate = 0;
+
+    pl[4].SemanticName = "TEXCOORD";
+    pl[4].SemanticIndex = 3;
+    pl[4].Format = DXGI_FORMAT_R32_FLOAT;
+    pl[4].InputSlot = 0;
+    pl[4].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+    pl[4].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+    pl[4].InstanceDataStepRate = 0;
+
+    pl[5].SemanticName = "NORMAL";
+    pl[5].SemanticIndex = 0;
+    pl[5].Format = DXGI_FORMAT_R32G32B32_FLOAT;
+    pl[5].InputSlot = 0;
+    pl[5].AlignedByteOffset = D3D11_APPEND_ALIGNED_ELEMENT;
+    pl[5].InputSlotClass = D3D11_INPUT_PER_VERTEX_DATA;
+    pl[5].InstanceDataStepRate = 0;
 
     UINT numElements = sizeof(pl) / sizeof(pl[0]);
     HRESULT result = device->CreateInputLayout(pl, numElements, vertexShaderBuffer->GetBufferPointer(), vertexShaderBuffer->GetBufferSize(), &m_layout);

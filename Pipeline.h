@@ -18,6 +18,12 @@ private:
 		glm::mat4x4 viewMatrix;
 		glm::mat4x4 projectionMatrix;
 	};
+	struct DepthBuffer
+	{
+		float nearPlane;
+		float farPlane;
+		glm::vec2 pad;
+	};
 	struct MatcapBuffer
 	{
 		glm::mat4x4 invProj;
@@ -32,8 +38,10 @@ public:
 
 	void Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, int textureWidth, int textureHeight);
 
-	void Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection);
+	void Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection, float nearPlane, float farPlane);
 	void Render(ID3D11DeviceContext* deviceContext, int indexCount, int shadingMode);
+
+	void CaptureDatapoint(ID3D11DeviceContext* deviceContext);
 
 private:
 	// SRV RTV helper
@@ -48,10 +56,10 @@ private:
 
 	ComPtr<ID3D11SamplerState> m_sampler;
 
-	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_matcapRTV, m_outRTV;
-	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV, m_depthSRV, m_matcapSRV;
+	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV;
+	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV;
 	ComPtr<ID3D11DepthStencilView> m_depthSV;
 
 	std::unique_ptr<GeometryNode> m_geometryNode;
-	std::unique_ptr<Node> m_matcapNode, m_outNode;
+	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode;
 };

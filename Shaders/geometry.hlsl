@@ -9,7 +9,9 @@ struct VertexInputType
 {
     float3 position : POSITION;
     float2 uv : TEXCOORD0;
-    float hatch : TEXCOORD1;
+    float3 hatch : TEXCOORD1;
+    float3 hatch2 : TEXCOORD2;
+    float reliable : TEXCOORD3;
     float3 normal : NORMAL;
 };
 
@@ -17,8 +19,10 @@ struct PixelInputType
 {
     float4 position : SV_POSITION;
     float2 uv : TEXCOORD0;
-    nointerpolation float hatch : TEXCOORD1;
-    //float hatch : TEXCOORD1;
+    nointerpolation float3 hatch : TEXCOORD1;
+    nointerpolation float3 hatch2 : TEXCOORD2;
+    nointerpolation float reliable : TEXCOORD3;
+    //float3 hatch : TEXCOORD1;
     float3 normal : NORMAL;
 };
 
@@ -37,7 +41,9 @@ PixelInputType GeometryVertexShader(VertexInputType input)
     output.normal = N;
     
     // output cross field
-    output.hatch = input.hatch;
+    output.hatch = normalize(input.hatch);
+    output.hatch2 = normalize(input.hatch2);
+    output.reliable = input.reliable;
     
     return output;
 }
@@ -46,6 +52,8 @@ struct PixelOutputType
 {
     float3 normal : SV_Target0;
     float3 hatch : SV_Target1;
+    float3 hatch2 : SV_Target2;
+    float reliable : SV_Target3;
 };
 
 PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
@@ -56,10 +64,17 @@ PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
     normal = normal * 0.5f + 0.5f;
     
     // hatch field placeholder
-    float hatch = input.hatch;
+    //float hatch = input.hatch;
+    float3 hatch = mul((float3x3) viewMatrix, normalize(input.hatch));
+    hatch = hatch * 0.5f + 0.5f;
+    
+    float3 hatch2 = mul((float3x3) viewMatrix, normalize(input.hatch2));
+    hatch2 = hatch2 * 0.5f + 0.5f;
     
     output.normal = normal;
-    output.hatch = float3(hatch, 0, 0);
+    output.hatch = hatch;
+    output.hatch2 = hatch2;
+    output.reliable = input.reliable;
 
     return output;
 }

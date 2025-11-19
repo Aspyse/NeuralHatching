@@ -5,13 +5,19 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	m_outRTV = outRTV;
 
 	bool result = CreateRenderTarget(device, m_normalRTV.GetAddressOf(), m_normalSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_depthPassthruRTV.GetAddressOf(), m_depthPassthruSRV.GetAddressOf(), textureWidth, textureHeight);
 
 	result = CreateRenderTarget(device, m_hatchRTV.GetAddressOf(), m_hatchSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_hatch2RTV.GetAddressOf(), m_hatch2SRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_reliabilityRTV.GetAddressOf(), m_reliabilitySRV.GetAddressOf(), textureWidth, textureHeight);
 
 	result = CreateRenderTarget(device, m_matcapRTV.GetAddressOf(), m_matcapSRV.GetAddressOf(), textureWidth, textureHeight);
 
 	m_geometryNode = std::make_unique<GeometryNode>();
 	m_geometryNode->Initialize(device, L"Shaders/geometry.hlsl", L"Shaders/geometry.hlsl", "GeometryVertexShader", "GeometryPixelShader");
+
+	m_depthPassthruNode = std::make_unique<Node>();
+	m_depthPassthruNode->Initialize(device, L"Shaders/linearize.hlsl", L"Shaders/linearize.hlsl", "BaseVertexShader", "PostprocessShader");
 
 	m_matcapNode = std::make_unique<Node>();
 	m_matcapNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/matcap.hlsl", "BaseVertexShader", "PostprocessShader");
@@ -20,18 +26,24 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	m_outNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/fullscreen.hlsl", "BaseVertexShader", "PostprocessShader");
 
 	m_geometryNode->AddVSConstantBuffer<MatrixBuffer>(device);
+	m_depthPassthruNode->AddPSConstantBuffer<DepthBuffer>(device);
 	m_matcapNode->AddPSConstantBuffer<MatcapBuffer>(device);
 
 	InitializeDepthTarget(device, textureWidth, textureHeight);
 }
 
 // sidenote: probably the most elegant method i've tried so far
-void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection)
+void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection, float nearPlane, float farPlane)
 {
 	MatrixBuffer matrixBuffer;
 	matrixBuffer.worldMatrix = glm::transpose(glm::mat4x4(1.0f)); // TODO: replace identity matrix
 	matrixBuffer.viewMatrix = glm::transpose(viewMatrix);
 	matrixBuffer.projectionMatrix = glm::transpose(projectionMatrix);
+
+	//TODO: make not constant
+	DepthBuffer depthBuffer;
+	depthBuffer.nearPlane = nearPlane;
+	depthBuffer.farPlane = farPlane;
 
 	MatcapBuffer matcapBuffer;
 	matcapBuffer.invProj = glm::transpose(glm::inverse(projectionMatrix));
@@ -39,6 +51,7 @@ void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix
 	matcapBuffer.lightDirectionVS = glm::mat3(viewMatrix) * glm::normalize(lightDirection); // TODO: test correctness
 
 	m_geometryNode->UpdateVSConstantBuffer<MatrixBuffer>(deviceContext, matrixBuffer, 0);
+	m_depthPassthruNode->UpdatePSConstantBuffer<DepthBuffer>(deviceContext, depthBuffer, 0);
 	m_matcapNode->UpdatePSConstantBuffer<MatcapBuffer>(deviceContext, matcapBuffer, 0);
 }
 
@@ -49,19 +62,36 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int sh
 	deviceContext->ClearRenderTargetView(m_normalRTV.Get(), CLEAR_COLOR);
 	deviceContext->ClearRenderTargetView(m_hatchRTV.Get(), CLEAR_COLOR);
 	deviceContext->ClearRenderTargetView(m_matcapRTV.Get(), CLEAR_COLOR);
+	deviceContext->ClearRenderTargetView(m_hatch2RTV.Get(), CLEAR_COLOR);
+	deviceContext->ClearRenderTargetView(m_reliabilityRTV.Get(), CLEAR_COLOR);
 
 	ID3D11ShaderResourceView* nullSRV[] = { nullptr, nullptr };
 	deviceContext->PSSetShaderResources(0, 2, nullSRV);
 	// Bind g-buffer RTV and depth
 	ID3D11RenderTargetView* gbufferRTVPtr[] = {
 		m_normalRTV.Get(),
-		m_hatchRTV.Get()
+		m_hatchRTV.Get(),
+		m_hatch2RTV.Get(),
+		m_reliabilityRTV.Get()
 	};
-	deviceContext->OMSetRenderTargets(2, gbufferRTVPtr, m_depthSV.Get());
+	deviceContext->OMSetRenderTargets(4, gbufferRTVPtr, m_depthSV.Get());
 	// Set geometry shader
 	m_geometryNode->Render(deviceContext);
 	// Draw model indices
 	deviceContext->DrawIndexed(indexCount, 0, 0);
+
+	Unbind(deviceContext);
+
+	// Bind depth passthrough
+	ID3D11RenderTargetView* depthPassthruRTVPtr = m_depthPassthruRTV.Get();
+	deviceContext->OMSetRenderTargets(1, &depthPassthruRTVPtr, nullptr);
+	// Bind depth SRV
+	ID3D11ShaderResourceView* depthSRVPtr = m_depthSRV.Get();
+	deviceContext->PSSetShaderResources(0, 1, &depthSRVPtr);
+	// Set depth passthru shader
+	m_depthPassthruNode->Render(deviceContext);
+	// Draw fullscreen tri
+	deviceContext->Draw(3, 0);
 
 	Unbind(deviceContext);
 
@@ -95,10 +125,16 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int sh
 		selectedSRV = m_normalSRV.Get();
 		break;
 	case 2: // Depth
-		selectedSRV = m_depthSRV.Get();
+		selectedSRV = m_depthPassthruSRV.Get();
 		break;
 	case 3: // Cross field
 		selectedSRV = m_hatchSRV.Get();
+		break;
+	case 4: // Cross field 2
+		selectedSRV = m_hatch2SRV.Get();
+		break;
+	case 5: // Reliability
+		selectedSRV = m_reliabilitySRV.Get();
 		break;
 	}
 	deviceContext->PSSetShaderResources(0, 1, &selectedSRV);
@@ -108,6 +144,70 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int sh
 	deviceContext->Draw(3, 0);
 
 	Unbind(deviceContext);
+}
+
+#include <filesystem>
+#include <fstream>
+#include <string>
+#include <wincodec.h>
+#include "ScreenGrab.h"
+
+void Pipeline::CaptureDatapoint(ID3D11DeviceContext* deviceContext)
+{
+	std::filesystem::path dir = L"data";
+	std::filesystem::create_directories(dir);
+
+	int max = 0;
+	for (auto& p : std::filesystem::directory_iterator("data"))
+		if (int n; sscanf(p.path().filename().string().c_str(), "%d_", &n) == 1)
+			max = std::max(max, n);
+
+	ID3D11ShaderResourceView* srv = m_normalSRV.Get();
+	ComPtr<ID3D11Resource> res;
+	srv->GetResource(&res);
+	//if (!res) return false;
+	HRESULT hr = DirectX::SaveWICTextureToFile(
+		deviceContext,
+		res.Get(),
+		GUID_ContainerFormatPng,
+		(dir / (std::to_wstring(max + 1) + L"_normal.png")).c_str()
+	);
+
+	srv = m_hatchSRV.Get();
+	srv->GetResource(&res);
+	hr = DirectX::SaveWICTextureToFile(
+		deviceContext,
+		res.Get(),
+		GUID_ContainerFormatPng,
+		(dir / (std::to_wstring(max + 1) + L"_hatchMax.png")).c_str()
+	);
+
+	srv = m_hatch2SRV.Get();
+	srv->GetResource(&res);
+	hr = DirectX::SaveWICTextureToFile(
+		deviceContext,
+		res.Get(),
+		GUID_ContainerFormatPng,
+		(dir / (std::to_wstring(max + 1) + L"_hatchMin.png")).c_str()
+	);
+
+	srv = m_depthPassthruSRV.Get();
+	srv->GetResource(&res);
+	hr = DirectX::SaveWICTextureToFile(
+		deviceContext,
+		res.Get(),
+		GUID_ContainerFormatPng,
+		(dir / (std::to_wstring(max + 1) + L"_depth.png")).c_str()
+	);
+
+	srv = m_reliabilitySRV.Get();
+	srv->GetResource(&res);
+	hr = DirectX::SaveWICTextureToFile(
+		deviceContext,
+		res.Get(),
+		GUID_ContainerFormatPng,
+		(dir / (std::to_wstring(max + 1) + L"_reliable.png")).c_str()
+	);
 }
 
 void Pipeline::Unbind(ID3D11DeviceContext* deviceContext)

@@ -10,19 +10,23 @@
 
 using Microsoft::WRL::ComPtr;
 
-const int N_SHADING_MODES = 4;
+const int N_SHADING_MODES = 6;
 inline const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
 	"Matcap",
 	"Normals",
 	"Depth",
-	"Cross Field"
+	"Cross Field",
+	"Cross Field (Minimum)",
+	"Reliability"
 };
 enum class ShadingMode : int
 {
 	Matcap = 0,
 	Normal = 1,
 	Depth = 2,
-	Crossfield = 3
+	Crossfield = 3,
+	Crossfield2 = 4,
+	Reliability = 5
 };
 
 class Viewport
@@ -31,13 +35,15 @@ public:
 	Viewport();
 	~Viewport();
 
-	bool Initialize(HWND hWnd, WNDCLASSEXW);
+	bool Initialize(HWND hWnd, WNDCLASSEXW, float nearPlane, float farPlane);
 	void Shutdown();
 	bool Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Model* model);
 
 	ID3D11Device* GetDevice();
 	ID3D11DeviceContext* GetContext();
 	ShadingMode* GetShadingMode();
+
+	void CaptureDatapoint();
 
 private:
 	bool InitializeDeviceD3D(HWND hWnd);
@@ -75,4 +81,5 @@ private:
 	D3D11_VIEWPORT m_dvp = {};
 
 	UINT m_screenWidth = 0, m_screenHeight = 0;
+	float m_near = 0, m_far = 0;
 };

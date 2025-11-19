@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Node.h"
-#include <glm/mat4x4.hpp>
 
 class GeometryNode : public Node
 {
