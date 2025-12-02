@@ -2,65 +2,34 @@
 #include <glm/gtc/constants.hpp>
 #include <vector>
 
-// DEBUG
-#include <windows.h>
-#include <sstream>
-#include <iomanip>
-#include <chrono> // remove after
-
-#define DEBUG_LOG(msg) { \
-    std::wstringstream ss; \
-    ss << msg << L"\n"; \
-    OutputDebugStringW(ss.str().c_str()); \
-}
-
-#define DEBUG_BAR(a, b, inc, inctime) { \
-	std::wstringstream ss; \
-	int div = b/inc; \
-	int rem = inc-a/div; \
-	int t = inctime*rem; \
-	float s = (float)(t%60000000)/1000000; \
-    ss << L"[" << std::wstring(a/div, '#') << std::wstring(rem, '-') << L"] " << a << L"/" << b << L" vertices "; \
-	ss << "ETA: " << t/60000000 << L":" << std::fixed << std::setfill(L'0') << std::setw(5) << std::setprecision(2) << s << L"\n"; \
-    OutputDebugStringW(ss.str().c_str()); \
-}
+#include "Logging.h"
 
 void Curvature::InitializeField(Model& model)
 {
-	auto start = std::chrono::high_resolution_clock::now();
 	
 	std::vector<CurvatureInfo> curvatures;
 	curvatures.reserve(model.m_vertexCount);
 
+
 	BuildOneRings(model.m_indices);
 
+	Logging::DEBUG_LOG(L"CALCULATING CURVATURE INFO...");
+	Logging::DEBUG_START();
 	int inc = model.m_vertexCount/60;
 	for (uint32_t v = 0; v < model.m_vertexCount; v++) {
 		// debug
-		if (v % inc == 0) {
-			auto curr = std::chrono::high_resolution_clock::now();
-			auto inctime = std::chrono::duration_cast<std::chrono::microseconds>(curr - start).count();
-			inctime /= (v / inc) + 1;
-			DEBUG_BAR(v, model.m_vertexCount, 60, inctime);
-			
-
-		}
-		OutputDebugString(TEXT(""));
-
-
+		Logging::DEBUG_BAR(v, model.m_vertexCount);
 
 		curvatures.push_back(SolveCurvature(v, model.m_vertices, model.m_indices));
 	}
 
 	model.m_curvatures = curvatures; // TODO: consider if proper return is better
-
-	//auto end = std::chrono::high_resolution_clock::now();
-
-	//auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-	//DEBUG_LOG(duration.count());
 }
 
 void Curvature::BuildOneRings(const std::vector<uint32_t>& indices) {
+	Logging::DEBUG_LOG(L"PRECALCULATING ONE-RINGS...");
+	Logging::DEBUG_START();
+	
 	m_oneRings.clear();
 
 	// Build adjacency
@@ -68,6 +37,8 @@ void Curvature::BuildOneRings(const std::vector<uint32_t>& indices) {
 	std::unordered_map<uint32_t, std::vector<uint32_t>> adjacency;
 
 	for (size_t i = 0; i < indices.size(); i += 3) {
+		Logging::DEBUG_BAR(i/3, indices.size()/3);
+
 		uint32_t v0 = indices[i];
 		uint32_t v1 = indices[i + 1];
 		uint32_t v2 = indices[i + 2];
@@ -83,7 +54,12 @@ void Curvature::BuildOneRings(const std::vector<uint32_t>& indices) {
 	}
 
 	// Order each one-ring
+	Logging::DEBUG_LOG(L"ORDERING ONE-RINGS...");
+	size_t ctr = 0;
+	Logging::DEBUG_START();
 	for (const auto& [vertex, neighs] : neighbors) {
+		Logging::DEBUG_BAR(ctr, neighbors.size());
+		ctr++;
 		m_oneRings[vertex] = OrderOneRing(vertex, neighs, adjacency);
 	}
 }
