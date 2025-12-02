@@ -60,3 +60,9 @@ In a command prompt, run:
 - [Eigen](https://github.com/PX4/eigen)
 - [LBFGSpp](https://github.com/yixuan/LBFGSpp)
 
+
+## Models Used
+
+- [Thingi10K](https://github.com/Thingi10K/Thingi10K)
+- [MPZ14](https://vcg-legacy.isti.cnr.it/Publications/2014/MPZ14/)
+- [ShapeNetCore](https://huggingface.co/datasets/ShapeNet/ShapeNetCore)
