@@ -35,6 +35,12 @@ void Camera::SetPosition(float x, float y, float z)
 	m_position.z = z;
 }
 
+void Camera::SetRotation(float p, float y, float r)
+{
+	m_pitch = p;
+	m_yaw = y;
+}
+
 void Camera::Initialize()
 {
 	m_projectionMatrix = glm::perspectiveLH_ZO(m_fov, m_aspect, m_nearZ, m_farZ);

@@ -41,7 +41,7 @@ public:
 	void Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection, float nearPlane, float farPlane);
 	void Render(ID3D11DeviceContext* deviceContext, int indexCount, int shadingMode);
 
-	void CaptureDatapoint(ID3D11DeviceContext* deviceContext);
+	void CaptureDatapoint(ID3D11DeviceContext* deviceContext, std::wstring prefix = L"");
 
 private:
 	// SRV RTV helper
