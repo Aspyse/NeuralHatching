@@ -2,29 +2,154 @@
 #include <glm/gtc/constants.hpp>
 #include <vector>
 
+// DEBUG
+#include <windows.h>
+#include <sstream>
+#include <iomanip>
+#include <chrono> // remove after
+
+#define DEBUG_LOG(msg) { \
+    std::wstringstream ss; \
+    ss << msg << L"\n"; \
+    OutputDebugStringW(ss.str().c_str()); \
+}
+
+#define DEBUG_BAR(a, b, inc, inctime) { \
+	std::wstringstream ss; \
+	int div = b/inc; \
+	int rem = inc-a/div; \
+	int t = inctime*rem; \
+	float s = (float)(t%60000000)/1000000; \
+    ss << L"[" << std::wstring(a/div, '#') << std::wstring(rem, '-') << L"] " << a << L"/" << b << L" vertices "; \
+	ss << "ETA: " << t/60000000 << L":" << std::fixed << std::setfill(L'0') << std::setw(5) << std::setprecision(2) << s << L"\n"; \
+    OutputDebugStringW(ss.str().c_str()); \
+}
+
 void Curvature::InitializeField(Model& model)
 {
+	auto start = std::chrono::high_resolution_clock::now();
+	
 	std::vector<CurvatureInfo> curvatures;
 	curvatures.reserve(model.m_vertexCount);
 
-	for (uint32_t v = 0; v < model.m_vertexCount; v++)
+	BuildOneRings(model.m_indices);
+
+	int inc = model.m_vertexCount/60;
+	for (uint32_t v = 0; v < model.m_vertexCount; v++) {
+		// debug
+		if (v % inc == 0) {
+			auto curr = std::chrono::high_resolution_clock::now();
+			auto inctime = std::chrono::duration_cast<std::chrono::microseconds>(curr - start).count();
+			inctime /= (v / inc) + 1;
+			DEBUG_BAR(v, model.m_vertexCount, 60, inctime);
+			
+
+		}
+		OutputDebugString(TEXT(""));
+
+
+
 		curvatures.push_back(SolveCurvature(v, model.m_vertices, model.m_indices));
+	}
 
 	model.m_curvatures = curvatures; // TODO: consider if proper return is better
+
+	//auto end = std::chrono::high_resolution_clock::now();
+
+	//auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+	//DEBUG_LOG(duration.count());
 }
+
+void Curvature::BuildOneRings(const std::vector<uint32_t>& indices) {
+	m_oneRings.clear();
+
+	// Build adjacency
+	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> neighbors;
+	std::unordered_map<uint32_t, std::vector<uint32_t>> adjacency;
+
+	for (size_t i = 0; i < indices.size(); i += 3) {
+		uint32_t v0 = indices[i];
+		uint32_t v1 = indices[i + 1];
+		uint32_t v2 = indices[i + 2];
+
+		// Add edges
+		neighbors[v0].insert(v1); neighbors[v0].insert(v2);
+		neighbors[v1].insert(v0); neighbors[v1].insert(v2);
+		neighbors[v2].insert(v0); neighbors[v2].insert(v1);
+
+		adjacency[v0].push_back(v1); adjacency[v0].push_back(v2);
+		adjacency[v1].push_back(v2); adjacency[v1].push_back(v0);
+		adjacency[v2].push_back(v0); adjacency[v2].push_back(v1);
+	}
+
+	// Order each one-ring
+	for (const auto& [vertex, neighs] : neighbors) {
+		m_oneRings[vertex] = OrderOneRing(vertex, neighs, adjacency);
+	}
+}
+
+std::vector<uint32_t> Curvature::OrderOneRing(
+	uint32_t center,
+	const std::unordered_set<uint32_t>& neighbors,
+	const std::unordered_map<uint32_t, std::vector<uint32_t>>& adjacency)
+{
+	// TODO: non-manifold check
+	if (neighbors.size() < 3)
+		return std::vector<uint32_t>(neighbors.begin(), neighbors.end());
+
+	uint32_t start = *neighbors.begin();
+	for (auto n : neighbors)
+		if (adjacency.at(n).size() == 1)
+			start = n;
+
+	std::vector<uint32_t> ordered;
+	ordered.reserve(neighbors.size());
+	uint32_t prev = 0, curr = start;
+	while (ordered.size() < neighbors.size())
+	{
+		ordered.push_back(curr);
+
+		uint32_t next = 0;
+		for (uint32_t adjacent : adjacency.at(curr))
+		{
+			if (adjacent != prev)
+			{
+				next = adjacent;
+				break;
+			}
+		}
+
+		prev = curr;
+		if (next == start)
+			break;
+		curr = next;
+	}
+
+	return ordered;
+}
+
+const std::vector<uint32_t>& Curvature::GetOneRing(uint32_t vertexIndex) const {
+	static std::vector<uint32_t> empty;
+	auto it = m_oneRings.find(vertexIndex);
+	return (it != m_oneRings.end()) ? it->second : empty;
+}
+
+
+
 
 // Find the principal direction/hatch angle at a given vertex
 // Maximum and minimum curvatures are assumed to be perpendicular, thus equivalent
-Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentIndex, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
+Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentVertex, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
 {
 	CurvatureInfo result;
 	
-	std::vector<uint32_t> oneRing = FindOneRing(currentIndex, indices);
+	//std::vector<uint32_t> oneRing = FindOneRing(currentVertex, indices);
+	std::vector<uint32_t> oneRing = GetOneRing(currentVertex);
 	int k = oneRing.size();
 
 	// TODO: non-manifold check
 
-	glm::vec3 a0 = CalculateControlPointLimit(currentIndex, vertices, oneRing);
+	glm::vec3 a0 = CalculateControlPointLimit(currentVertex, vertices, oneRing);
 
 	// Hertzmann and Zorin Appendix A
 	glm::vec3 sum_pi(0.0f);
@@ -145,65 +270,6 @@ Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentIndex, const std:
 
 
 	return result;
-}
-
-std::vector<uint32_t> Curvature::FindOneRing(uint32_t currentIndex, std::vector<uint32_t> indices)
-{
-	std::unordered_set<uint32_t> neighbors;
-	std::unordered_map<uint32_t, std::vector<uint32_t>> adjacencyList;
-
-	for (int i = 0; i < indices.size(); i += 3)
-	{
-		int local = -1;
-		if (indices[i] == currentIndex) local = 0;
-		else if (indices[i + 1] == currentIndex) local = 1;
-		else if (indices[i + 2] == currentIndex) local = 2;
-
-		if (local != -1)
-		{
-			int v1 = indices[i + (local + 1) % 3];
-			int v2 = indices[i + (local + 2) % 3];
-
-			neighbors.insert(v1);
-			neighbors.insert(v2);
-			adjacencyList[v1].push_back(v2);
-			adjacencyList[v2].push_back(v1);
-		}
-	}
-
-	// TODO: non-manifold check
-	if (neighbors.size() < 3)
-		return std::vector<uint32_t>(neighbors.begin(), neighbors.end());
-
-	uint32_t start = *neighbors.begin();
-	for (auto n : neighbors)
-		if (adjacencyList[n].size() == 1)
-			start = n;
-
-	std::vector<uint32_t> ordered;
-	ordered.reserve(neighbors.size());
-	uint32_t prev = 0, curr = start;
-	while (ordered.size() < neighbors.size())
-	{
-		ordered.push_back(curr);
-
-		uint32_t next = 0;
-		for (uint32_t adjacent : adjacencyList[curr])
-		{
-			if (adjacent != prev)
-			{
-				next = adjacent;
-				break;
-			}
-		}
-
-		prev = curr;
-		if (next == start)
-			break;
-		curr = next;
-	}
-
-	return ordered;
 }
 
 // Loop subdivision limit
