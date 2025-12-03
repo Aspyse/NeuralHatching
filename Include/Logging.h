@@ -21,6 +21,7 @@ public:
 	static void DEBUG_BAR(size_t a, size_t total, int inc = 60)
 	{
 		if (total < inc) inc = total;
+		if (a > total) a = total;
 		size_t div = total / inc;
 		if (a % div == 0) {
 			auto curr = std::chrono::high_resolution_clock::now();

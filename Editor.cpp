@@ -8,8 +8,8 @@ bool Editor::Initialize()
 	// Window init
 	const int SCREEN_WIDTH = 512,
 		SCREEN_HEIGHT = 512;
-	const float NEAR_PLANE = 0.01f,
-		FAR_PLANE = 1.0f;
+	const float NEAR_PLANE = 0.1f,
+		FAR_PLANE = 6.0f;
 	WNDCLASSEXW m_wc = { sizeof(m_wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Neural Hatching", nullptr };
 	::RegisterClassExW(&m_wc);
 
@@ -43,7 +43,7 @@ bool Editor::Initialize()
 
 	m_camera = std::make_unique<Camera>();
 	m_camera->SetAspect(80, SCREEN_WIDTH, SCREEN_HEIGHT);
-	m_camera->SetPosition(0.0f, 0.0f, -1.0f);
+	m_camera->SetPosition(0.0f, 0.0f, -1.5f);
 	m_camera->SetPlanes(NEAR_PLANE, FAR_PLANE);
 	m_camera->Initialize();
 	

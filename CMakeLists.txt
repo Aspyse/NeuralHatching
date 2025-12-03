@@ -30,6 +30,12 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(DirectXTK)
 
+FetchContent_Declare(rapidobj
+    GIT_REPOSITORY  https://github.com/guybrush77/rapidobj.git
+    GIT_TAG         origin/master)
+
+FetchContent_MakeAvailable(rapidobj)
+
 # Add source to this project's executable.
 add_executable (NeuralHatching
 	"NeuralHatching.cpp"
@@ -60,7 +66,10 @@ add_executable (NeuralHatching
 	"Shaders/Nodes/GeometryNode.cpp"
 	"Shaders/Nodes/GeometryNode.h"
 	"Pipeline.h"
-	"Pipeline.cpp" "Curvature.h" "Curvature.cpp" )
+	"Pipeline.cpp"
+	"Curvature.h"
+	"Curvature.cpp" 
+	"Include/Logging.h")
 
 target_include_directories (NeuralHatching PRIVATE
 	"${CMAKE_SOURCE_DIR}/Shaders/Nodes"
@@ -75,11 +84,13 @@ target_include_directories (NeuralHatching PRIVATE
 target_link_libraries(NeuralHatching PRIVATE d3d11)
 target_link_libraries(NeuralHatching PRIVATE DirectXTK)
 target_link_libraries(NeuralHatching PRIVATE glm::glm)
+target_link_libraries(NeuralHatching PRIVATE rapidobj::rapidobj)
 
 file(GLOB_RECURSE ALL_RESOURCES
 	"${CMAKE_SOURCE_DIR}/Shaders/*.hlsl"
 	"${CMAKE_SOURCE_DIR}/Models/*.ply"
-	"${CMAKE_SOURCE_DIR}/Models/*.glb")
+	"${CMAKE_SOURCE_DIR}/Models/*.glb"
+	"${CMAKE_SOURCE_DIR}/Models/*.obj")
 
 set(RESOURCE_OUTPUTS "")
 foreach(RESOURCE_FILE IN LISTS ALL_RESOURCES)
