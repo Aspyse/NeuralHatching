@@ -22,7 +22,7 @@ public:
 	{
 		if (total < inc) inc = total;
 		if (a > total) a = total;
-		size_t div = total / inc;
+		size_t div = ceil((double)total / inc);
 		if (a % div == 0) {
 			auto curr = std::chrono::high_resolution_clock::now();
 			auto inctime = std::chrono::duration_cast<std::chrono::microseconds>(curr - start).count();

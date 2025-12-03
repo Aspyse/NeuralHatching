@@ -69,6 +69,8 @@ void Editor::Synthesize()
 	int yawSteps = 120;
 	int inc = yawSteps * pitchSteps / 60;
 
+	m_camera->SetPosition(0.0f, 0.0f, -1.6f);
+
 	Logging::DEBUG_LOG(L"AUTOCAPTURING DATA...");
 
 	Logging::DEBUG_START();
