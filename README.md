@@ -18,9 +18,11 @@
 
 https://github.com/user-attachments/assets/573d3bbb-b8a8-4ef8-b994-e7fcb6d6235b
 
-## Python Notebook Segment
+## Python Notebooks
 
-[Colab Viewer Link](https://colab.research.google.com/drive/1VXV40wjvwrJY0u0FO7uaqlZU9q9eaiBZ?usp=sharing)
+[Streamline visualization (Colab notebook viewer link)](https://colab.research.google.com/drive/1VXV40wjvwrJY0u0FO7uaqlZU9q9eaiBZ?usp=sharing)
+
+[Model training (Colab notebook viewer link)](https://colab.research.google.com/drive/1Jo42dFrP3hp772G_5KVQE9SbsEmQYZij?usp=sharing)
 
 ## Setup
 
