@@ -24,6 +24,13 @@ https://github.com/user-attachments/assets/573d3bbb-b8a8-4ef8-b994-e7fcb6d6235b
 
 [Model training (Colab notebook viewer link)](https://colab.research.google.com/drive/1Jo42dFrP3hp772G_5KVQE9SbsEmQYZij?usp=sharing)
 
+## Dataset
+
+The model is trained using screen-space normals, depth, and principal curvature data captured from models in the MPZ14, Thingi10K, and ShapeNetCore datasets.
+
+The resulting dataset is made available here: [Google Drive](https://drive.google.com/file/d/1al9NW5k26OTgY2jzM3dHi1Otv2Zp-Voi/view?usp=sharing)
+
+
 ## Setup
 
 ### 1. Clone the repository
