@@ -5,6 +5,7 @@
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
 #include <glm/mat4x4.hpp>
+#include <string>
 #include <wrl/client.h>
 #include <vector>
 
@@ -55,13 +56,20 @@ public:
 	
 	int GetIndexCount();
 
+	std::wstring GetName();
+
 private:
 	void CalculateNormals();
 	void CalculateCrossField();
 	bool CreateBuffers(ID3D11Device* device);
+
+	void Autonormalize(float diameter = 1.0f);
+
 	bool LoadPLY(const char* filename);
+	bool LoadOBJ(const char* filename);
 
 private:
+	std::wstring m_name;
 	uint32_t m_vertexCount = 0;
 	ComPtr<ID3D11Buffer> m_vertexBuffer;
 	ComPtr<ID3D11Buffer> m_indexBuffer;

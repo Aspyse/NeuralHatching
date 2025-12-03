@@ -91,9 +91,9 @@ ShadingMode* Viewport::GetShadingMode()
 	return &m_shadingMode;
 }
 
-void Viewport::CaptureDatapoint()
+void Viewport::CaptureDatapoint(std::wstring prefix)
 {
-	m_pipeline->CaptureDatapoint(m_deviceContext.Get());
+	m_pipeline->CaptureDatapoint(m_deviceContext.Get(), prefix);
 }
 
 

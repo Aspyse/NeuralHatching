@@ -17,10 +17,11 @@ public:
 	void InitializeField(Model& model);
 
 private:
-	CurvatureInfo SolveCurvature(uint32_t currentIndex, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices);
+	const std::vector<uint32_t>& GetOneRing(uint32_t vertexIndex) const;
+	void BuildOneRings(const std::vector<uint32_t>& indices);
+	std::vector<uint32_t> OrderOneRing(uint32_t center, const std::unordered_set<uint32_t>& neighbors, const std::unordered_map<uint32_t, std::vector<uint32_t>>& adjacency);
 
-	// Ordered
-	std::vector<uint32_t> FindOneRing(uint32_t currentIndex, std::vector<uint32_t> indices);
+	CurvatureInfo SolveCurvature(uint32_t currentIndex, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices);
 
 	glm::vec3 CalculateControlPointLimit(uint32_t currentIndex, const std::vector<Vertex>& vertices, const std::vector<uint32_t>& oneRing);
 
@@ -31,4 +32,6 @@ private:
 public:
 	const float RELIABLE_THRESHOLD = 0.5; //TODO: needs more testing
 	const float CURVATURE_THRESHOLD = 200;
+
+	std::unordered_map<uint32_t, std::vector<uint32_t>> m_oneRings;
 };

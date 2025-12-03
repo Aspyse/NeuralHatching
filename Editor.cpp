@@ -1,12 +1,15 @@
 #include "Editor.h"
+#include <functional>
+#include "Logging.h"
+
 
 bool Editor::Initialize()
 {
 	// Window init
-	const int SCREEN_WIDTH = 1024,
-		SCREEN_HEIGHT = 1024;
-	const float NEAR_PLANE = 0.01f,
-		FAR_PLANE = 0.5f;
+	const int SCREEN_WIDTH = 512,
+		SCREEN_HEIGHT = 512;
+	const float NEAR_PLANE = 0.1f,
+		FAR_PLANE = 6.0f;
 	WNDCLASSEXW m_wc = { sizeof(m_wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Neural Hatching", nullptr };
 	::RegisterClassExW(&m_wc);
 
@@ -32,7 +35,6 @@ bool Editor::Initialize()
 	m_ui = std::make_unique<UI>();
 	m_viewport = std::make_unique<Viewport>();
 	m_ui->Initialize(m_hwnd);
-	m_ui->BindControls(m_viewport.get());
 
 	m_input = std::make_unique<Input>();
 	m_input->Initialize();
@@ -41,16 +43,52 @@ bool Editor::Initialize()
 
 	m_camera = std::make_unique<Camera>();
 	m_camera->SetAspect(80, SCREEN_WIDTH, SCREEN_HEIGHT);
-	m_camera->SetPosition(0.0f, 0.0f, -1.0f);
+	m_camera->SetPosition(0.0f, 0.0f, -1.6f);
 	m_camera->SetPlanes(NEAR_PLANE, FAR_PLANE);
 	m_camera->Initialize();
 	
 	m_viewport->Initialize(m_hwnd, m_wc, NEAR_PLANE, FAR_PLANE);
 
 	m_model = std::make_unique<Model>();
-	m_model->Load(m_viewport->GetDevice(), "Models/bun_zipper.ply");
+	m_model->Load(m_viewport->GetDevice(), "bun_zipper.ply");
+
+	std::function<void()> synthesizeCallback;
+	synthesizeCallback = [this]() { this->m_isSynthesisScheduled = true; };
+	m_ui->BindControls(m_viewport.get(), m_model.get(), synthesizeCallback);
 
 	return true;
+}
+
+void Editor::Synthesize()
+{
+	float pitchMin = -60;
+	float pitchMax = 60;
+	int pitchSteps = 3;
+	int pitchInc = (pitchMax - pitchMin) / pitchSteps;
+	
+	int yawSteps = 120;
+	int inc = yawSteps * pitchSteps / 60;
+
+	m_camera->SetPosition(0.0f, 0.0f, -1.6f);
+
+	Logging::DEBUG_LOG(L"AUTOCAPTURING DATA...");
+
+	Logging::DEBUG_START();
+	for (int i = 0; i < pitchSteps; i++)
+	{
+		float p = pitchMin + pitchInc * i;
+		for (int j = 0; j < yawSteps; j++)
+		{
+			Logging::DEBUG_BAR(i * yawSteps + j, yawSteps * pitchSteps);
+
+			float y = (360.0f / yawSteps) * j - 180.0f;
+
+			m_camera->SetRotation(p, y, 0);
+			m_camera->Orbit(0, 0);
+			Frame();
+			m_viewport->CaptureDatapoint(m_model->GetName());
+		}
+	}
 }
 
 void Editor::Shutdown() const
@@ -65,6 +103,13 @@ void Editor::Run()
 
 	while (!done)
 	{
+		if (m_isSynthesisScheduled)
+		{
+			Synthesize();
+			m_isSynthesisScheduled = false;
+			continue;
+		}
+		
 		MSG msg;
 		while (::PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE))
 		{
@@ -78,6 +123,7 @@ void Editor::Run()
 
 		// Loop
 		result = Frame();
+
 		if (!result)
 			done = true;
 	}
@@ -99,6 +145,7 @@ bool Editor::Frame()
 	m_camera->Frame(static_cast<float>(-delta.x), static_cast<float>(-delta.y), m_input->GetScrollDelta(), m_input->IsMiddleMouseDown(), m_input->IsKeyDown(VK_SHIFT));
 
 	result = m_viewport->Render(m_camera->GetViewMatrix(), m_camera->GetProjectionMatrix(), m_model.get());
+
 	if (!result)
 		return false;
 

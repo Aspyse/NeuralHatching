@@ -13,6 +13,7 @@ public:
 	void SetAspect(float fov, float width, float height);
 	void SetPlanes(float nearZ, float farZ);
 	void SetPosition(float x, float y, float z);
+	void SetRotation(float p, float y, float r);
 
 	void Initialize();
 

@@ -33,6 +33,13 @@ void Camera::SetPosition(float x, float y, float z)
 	m_position.x = x;
 	m_position.y = y;
 	m_position.z = z;
+	m_distance = glm::length(m_orbitPos - m_position);
+}
+
+void Camera::SetRotation(float p, float y, float r)
+{
+	m_pitch = p;
+	m_yaw = y;
 }
 
 void Camera::Initialize()

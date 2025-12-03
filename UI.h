@@ -4,22 +4,19 @@
 #include <windows.h>
 #include "Viewport.h"
 
+#include <functional>
+
 class UI
 {
 private:
 
 
 public:
-	struct UIFields
-	{
-		char modelFile[256] = "";
-	};
-
 	UI() {};
 	~UI() {};
 
 	bool Initialize(HWND hWnd);
-	void BindControls(Viewport* viewport);
+	void BindControls(Viewport* viewport, Model* model, std::function<void()> callback);
 
 	void Shutdown();
 	bool Frame();
@@ -31,8 +28,10 @@ public:
 private:
 	ImGuiIO* m_io = nullptr;
 
-	UIFields m_fields;
+	char m_modelFile[256] = "";
 	Viewport* m_viewport = nullptr;
+	Model* m_model = nullptr;
+	std::function<void()> m_synthesizeCallback;
 };
 
 static LRESULT WINAPI WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

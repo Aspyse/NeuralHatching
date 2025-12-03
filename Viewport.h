@@ -43,7 +43,7 @@ public:
 	ID3D11DeviceContext* GetContext();
 	ShadingMode* GetShadingMode();
 
-	void CaptureDatapoint();
+	void CaptureDatapoint(std::wstring = L"");
 
 private:
 	bool InitializeDeviceD3D(HWND hWnd);

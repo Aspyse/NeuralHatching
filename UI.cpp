@@ -22,9 +22,11 @@ bool UI::Initialize(HWND hWnd)
 	return true; // TEMP
 }
 
-void UI::BindControls(Viewport* viewport)
+void UI::BindControls(Viewport* viewport, Model* model, std::function<void()> callback)
 {
 	m_viewport = viewport;
+	m_model = model;
+	m_synthesizeCallback = callback;
 }
 
 void UI::Shutdown()
@@ -44,8 +46,11 @@ bool UI::Frame()
 		ImGui::Begin("Editor Controls");
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / m_io->Framerate, m_io->Framerate);
 
-		ImGui::InputText("Model Path", m_fields.modelFile, sizeof(m_fields.modelFile));
-		if (ImGui::Button("Load Model")) {}
+		ImGui::InputText("Model Path", m_modelFile, sizeof(m_modelFile));
+		if (ImGui::Button("Load Model"))
+		{
+			m_model->Load(m_viewport->GetDevice(), m_modelFile);
+		}
 
 		ImGui::Separator();
 
@@ -59,6 +64,11 @@ bool UI::Frame()
 			m_viewport->CaptureDatapoint();
 		}
 
+		if (ImGui::Button("Autocapture for model"))
+		{
+			m_synthesizeCallback();
+		}
+
 		ImGui::End();
 	}
 
@@ -69,7 +79,7 @@ bool UI::Frame()
 
 char* UI::GetFilename()
 {
-	return m_fields.modelFile;
+	return m_modelFile;
 }
 
 /*

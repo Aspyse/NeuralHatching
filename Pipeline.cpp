@@ -152,13 +152,15 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int sh
 #include <wincodec.h>
 #include "ScreenGrab.h"
 
-void Pipeline::CaptureDatapoint(ID3D11DeviceContext* deviceContext)
+void Pipeline::CaptureDatapoint(ID3D11DeviceContext* deviceContext, std::wstring prefix)
 {
 	std::filesystem::path dir = L"data";
 	std::filesystem::create_directories(dir);
+	dir = (dir / prefix);
+	std::filesystem::create_directories(dir);
 
 	int max = 0;
-	for (auto& p : std::filesystem::directory_iterator("data"))
+	for (auto& p : std::filesystem::directory_iterator(dir))
 		if (int n; sscanf(p.path().filename().string().c_str(), "%d_", &n) == 1)
 			max = std::max(max, n);
 
@@ -200,6 +202,7 @@ void Pipeline::CaptureDatapoint(ID3D11DeviceContext* deviceContext)
 		(dir / (std::to_wstring(max + 1) + L"_depth.png")).c_str()
 	);
 
+	/*
 	srv = m_reliabilitySRV.Get();
 	srv->GetResource(&res);
 	hr = DirectX::SaveWICTextureToFile(
@@ -208,6 +211,7 @@ void Pipeline::CaptureDatapoint(ID3D11DeviceContext* deviceContext)
 		GUID_ContainerFormatPng,
 		(dir / (std::to_wstring(max + 1) + L"_reliable.png")).c_str()
 	);
+	*/
 }
 
 void Pipeline::Unbind(ID3D11DeviceContext* deviceContext)

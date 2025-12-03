@@ -2,29 +2,150 @@
 #include <glm/gtc/constants.hpp>
 #include <vector>
 
+#include "Logging.h"
+
 void Curvature::InitializeField(Model& model)
 {
+	
 	std::vector<CurvatureInfo> curvatures;
 	curvatures.reserve(model.m_vertexCount);
 
-	for (uint32_t v = 0; v < model.m_vertexCount; v++)
+
+	BuildOneRings(model.m_indices);
+
+	Logging::DEBUG_LOG(L"CALCULATING CURVATURE INFO...");
+	Logging::DEBUG_START();
+	int inc = model.m_vertexCount/60;
+	for (uint32_t v = 0; v < model.m_vertexCount; v++) {
+		// debug
+		Logging::DEBUG_BAR(v, model.m_vertexCount);
+
 		curvatures.push_back(SolveCurvature(v, model.m_vertices, model.m_indices));
+	}
 
 	model.m_curvatures = curvatures; // TODO: consider if proper return is better
 }
 
+void Curvature::BuildOneRings(const std::vector<uint32_t>& indices) {
+	Logging::DEBUG_LOG(L"PRECALCULATING ONE-RINGS...");
+	Logging::DEBUG_START();
+	
+	m_oneRings.clear();
+
+	// Build adjacency
+	std::unordered_map<uint32_t, std::unordered_set<uint32_t>> neighbors;
+	std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::vector<uint32_t>>> adjForCenter;
+
+	for (size_t i = 0; i < indices.size(); i += 3) {
+		Logging::DEBUG_BAR(i/3, indices.size()/3);
+
+		uint32_t v0 = indices[i];
+		uint32_t v1 = indices[i + 1];
+		uint32_t v2 = indices[i + 2];
+
+		// for center v0: neighbors are v1,v2; record opposites
+		neighbors[v0].insert(v1); neighbors[v0].insert(v2);
+		adjForCenter[v0][v1].push_back(v2);
+		adjForCenter[v0][v2].push_back(v1);
+
+		// for center v1
+		neighbors[v1].insert(v0); neighbors[v1].insert(v2);
+		adjForCenter[v1][v0].push_back(v2);
+		adjForCenter[v1][v2].push_back(v0);
+
+		// for center v2
+		neighbors[v2].insert(v0); neighbors[v2].insert(v1);
+		adjForCenter[v2][v0].push_back(v1);
+		adjForCenter[v2][v1].push_back(v0);
+	}
+
+	// Order each one-ring
+	Logging::DEBUG_LOG(L"ORDERING ONE-RINGS...");
+	size_t ctr = 0;
+	Logging::DEBUG_START();
+	for (const auto& [vertex, neighs] : neighbors) {
+		Logging::DEBUG_BAR(ctr, neighbors.size());
+		ctr++;
+		m_oneRings[vertex] = OrderOneRing(vertex, neighs, adjForCenter[vertex]);
+	}
+}
+
+std::vector<uint32_t> Curvature::OrderOneRing(
+	uint32_t center,
+	const std::unordered_set<uint32_t>& neighbors,
+	const std::unordered_map<uint32_t, std::vector<uint32_t>>& adjacency)
+{
+	// TODO: non-manifold check
+	if (neighbors.size() < 3)
+		return std::vector<uint32_t>(neighbors.begin(), neighbors.end());
+
+	// pick a start: prefer a boundary neighbor (opposite list size == 1) else arbitrary
+	uint32_t start = *neighbors.begin();
+	for (uint32_t n : neighbors) {
+		auto it = adjacency.find(n);
+		if (it != adjacency.end() && it->second.size() == 1) {
+			start = n;
+			break;
+		}
+	}
+
+	// Simple walk — identical idea to your old loop but using per-center adjacency
+	std::vector<uint32_t> ordered;
+	ordered.reserve(neighbors.size());
+	uint32_t prev = UINT32_MAX;      // sentinel that won't match a valid index
+	uint32_t curr = start;
+
+	while (ordered.size() < neighbors.size()) {
+		ordered.push_back(curr);
+
+		// find next among adjacencyListForCenter[curr] that is a neighbor and != prev
+		uint32_t next = UINT32_MAX;
+		auto it = adjacency.find(curr);
+		if (it != adjacency.end()) {
+			for (uint32_t adj : it->second) {
+				if (adj == prev) continue;
+				// ensure adj is actually a neighbor of the center (sanity)
+				if (neighbors.find(adj) == neighbors.end()) continue;
+				next = adj;
+				break;
+			}
+		}
+
+		// couldn't find next -> boundary or non-manifold; stop walk
+		if (next == UINT32_MAX) break;
+
+		// if we've closed the loop, stop (don't duplicate start)
+		if (next == start) break;
+
+		prev = curr;
+		curr = next;
+	}
+
+	return ordered;
+}
+
+const std::vector<uint32_t>& Curvature::GetOneRing(uint32_t vertexIndex) const {
+	static std::vector<uint32_t> empty;
+	auto it = m_oneRings.find(vertexIndex);
+	return (it != m_oneRings.end()) ? it->second : empty;
+}
+
+
+
+
 // Find the principal direction/hatch angle at a given vertex
 // Maximum and minimum curvatures are assumed to be perpendicular, thus equivalent
-Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentIndex, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
+Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentVertex, const std::vector<Vertex> &vertices, const std::vector<uint32_t> &indices)
 {
 	CurvatureInfo result;
 	
-	std::vector<uint32_t> oneRing = FindOneRing(currentIndex, indices);
+	//std::vector<uint32_t> oneRing = FindOneRing(currentVertex, indices);
+	std::vector<uint32_t> oneRing = GetOneRing(currentVertex);
 	int k = oneRing.size();
 
 	// TODO: non-manifold check
 
-	glm::vec3 a0 = CalculateControlPointLimit(currentIndex, vertices, oneRing);
+	glm::vec3 a0 = CalculateControlPointLimit(currentVertex, vertices, oneRing);
 
 	// Hertzmann and Zorin Appendix A
 	glm::vec3 sum_pi(0.0f);
@@ -139,71 +260,9 @@ Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentIndex, const std:
 	result.theta = directionToAngle(result.dir1, tangent_u, tangent_v);
 
 	result.reliable = (std::abs(result.kappa2 / result.kappa1) <= RELIABLE_THRESHOLD) && (std::abs(result.kappa1) >= CURVATURE_THRESHOLD);
-	//result.theta = std::abs(result.kappa2 / result.kappa1) < 0.5;
-	//result.theta = std::abs(result.kappa1) >= 200;
-	//result.theta = result.kappa2 / result.kappa1;
 
 
 	return result;
-}
-
-std::vector<uint32_t> Curvature::FindOneRing(uint32_t currentIndex, std::vector<uint32_t> indices)
-{
-	std::unordered_set<uint32_t> neighbors;
-	std::unordered_map<uint32_t, std::vector<uint32_t>> adjacencyList;
-
-	for (int i = 0; i < indices.size(); i += 3)
-	{
-		int local = -1;
-		if (indices[i] == currentIndex) local = 0;
-		else if (indices[i + 1] == currentIndex) local = 1;
-		else if (indices[i + 2] == currentIndex) local = 2;
-
-		if (local != -1)
-		{
-			int v1 = indices[i + (local + 1) % 3];
-			int v2 = indices[i + (local + 2) % 3];
-
-			neighbors.insert(v1);
-			neighbors.insert(v2);
-			adjacencyList[v1].push_back(v2);
-			adjacencyList[v2].push_back(v1);
-		}
-	}
-
-	// TODO: non-manifold check
-	if (neighbors.size() < 3)
-		return std::vector<uint32_t>(neighbors.begin(), neighbors.end());
-
-	uint32_t start = *neighbors.begin();
-	for (auto n : neighbors)
-		if (adjacencyList[n].size() == 1)
-			start = n;
-
-	std::vector<uint32_t> ordered;
-	ordered.reserve(neighbors.size());
-	uint32_t prev = 0, curr = start;
-	while (ordered.size() < neighbors.size())
-	{
-		ordered.push_back(curr);
-
-		uint32_t next = 0;
-		for (uint32_t adjacent : adjacencyList[curr])
-		{
-			if (adjacent != prev)
-			{
-				next = adjacent;
-				break;
-			}
-		}
-
-		prev = curr;
-		if (next == start)
-			break;
-		curr = next;
-	}
-
-	return ordered;
 }
 
 // Loop subdivision limit
