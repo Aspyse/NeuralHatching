@@ -43,7 +43,7 @@ bool Editor::Initialize()
 
 	m_camera = std::make_unique<Camera>();
 	m_camera->SetAspect(80, SCREEN_WIDTH, SCREEN_HEIGHT);
-	m_camera->SetPosition(0.0f, 0.0f, -1.5f);
+	m_camera->SetPosition(0.0f, 0.0f, -1.6f);
 	m_camera->SetPlanes(NEAR_PLANE, FAR_PLANE);
 	m_camera->Initialize();
 	
@@ -61,8 +61,8 @@ bool Editor::Initialize()
 
 void Editor::Synthesize()
 {
-	float pitchMin = -50;
-	float pitchMax = 50;
+	float pitchMin = -60;
+	float pitchMax = 60;
 	int pitchSteps = 3;
 	int pitchInc = (pitchMax - pitchMin) / pitchSteps;
 	

@@ -146,6 +146,7 @@ bool Model::LoadOBJ(const char* filename)
 	// .obj position index -> vertex index
 	std::unordered_map<size_t, size_t> uniqueVertices;
 	std::unordered_map<size_t, int> normalCounts;
+	bool flagNormal = false;
 
 	Logging::DEBUG_LOG("READING VERTICES AND INDICES...");
 	Logging::DEBUG_START();
@@ -190,6 +191,7 @@ bool Model::LoadOBJ(const char* filename)
 				// normal (may be -1)
 				if (ix.normal_index >= 0) {
 					normalCounts[idx]++;
+					flagNormal = true;
 					size_t nn = size_t(ix.normal_index) * 3;
 					vtx->normal += glm::vec3(
 						A.normals[nn + 0],
@@ -212,6 +214,9 @@ bool Model::LoadOBJ(const char* filename)
 			m_vertices[i].normal = glm::normalize(m_vertices[i].normal);
 		}
 	}
+
+	if (!flagNormal)
+		CalculateNormals();
 
 	return true;
 }
