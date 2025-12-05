@@ -22,7 +22,7 @@ https://github.com/user-attachments/assets/573d3bbb-b8a8-4ef8-b994-e7fcb6d6235b
 
 [Streamline visualization (Colab notebook viewer link)](https://colab.research.google.com/drive/1VXV40wjvwrJY0u0FO7uaqlZU9q9eaiBZ?usp=sharing)
 
-[Model training (Colab notebook viewer link)](https://colab.research.google.com/drive/1Jo42dFrP3hp772G_5KVQE9SbsEmQYZij?usp=sharing)
+[Model training (Colab notebook viewer link)](https://colab.research.google.com/drive/1qiKQv-PAAWTBcLOEKISxOZVQ8V5_7UMA?usp=sharing)
 
 ## Dataset
 
