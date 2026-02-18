@@ -41,7 +41,9 @@ public:
 
 	ID3D11Device* GetDevice();
 	ID3D11DeviceContext* GetContext();
-	ShadingMode* GetShadingMode();
+
+	ShadingMode GetShadingMode();
+	void SetShadingMode(ShadingMode mode);
 
 	void CaptureDatapoint(std::wstring = L"");
 

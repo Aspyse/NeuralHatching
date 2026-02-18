@@ -86,9 +86,14 @@ ID3D11DeviceContext* Viewport::GetContext()
 	return m_deviceContext.Get();
 }
 
-ShadingMode* Viewport::GetShadingMode()
+ShadingMode Viewport::GetShadingMode()
 {
-	return &m_shadingMode;
+	return m_shadingMode;
+}
+
+void Viewport::SetShadingMode(ShadingMode mode)
+{
+	m_shadingMode = mode;
 }
 
 void Viewport::CaptureDatapoint(std::wstring prefix)

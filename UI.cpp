@@ -54,10 +54,11 @@ bool UI::Frame()
 
 		ImGui::Separator();
 
-		ShadingMode* currentMode = m_viewport->GetShadingMode();
-		int currentIndex = static_cast<int>(*currentMode);
+		ShadingMode mode = m_viewport->GetShadingMode();
+		int currentIndex = static_cast<int>(mode);
+
 		if (ImGui::Combo("Shading Mode", &currentIndex, SHADING_MODE_NAMES, N_SHADING_MODES))
-			*currentMode = static_cast<ShadingMode>(currentIndex);
+			m_viewport->SetShadingMode(static_cast<ShadingMode>(currentIndex));
 
 		if (ImGui::Button("Capture Datapoint"))
 		{
