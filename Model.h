@@ -50,13 +50,23 @@ public:
 	Model();
 	~Model();
 
+	void Initialize(uint64_t uid);
 	bool Load(ID3D11Device* device, const char* filename);
 	
 	void Render(ID3D11DeviceContext* context);
 	
 	int GetIndexCount();
+	glm::vec3 GetPosition();
+	glm::vec3 GetRotation();
+	glm::vec3 GetScale();
+	glm::mat4 GetWorldMatrix();
+
+	void SetPosition(glm::vec3 newPos);
+	void SetRotation(glm::vec3 newRot);
+	void SetScale(glm::vec3 newScl);
 
 	std::wstring GetName();
+	uint64_t GetUID();
 
 private:
 	void CalculateNormals();
@@ -69,6 +79,13 @@ private:
 	bool LoadOBJ(const char* filename);
 
 private:
+	uint64_t m_uid = 0;
+
+	glm::vec3 m_position = glm::vec3();
+	glm::vec3 m_rotation = glm::vec3();
+	glm::vec3 m_scale = glm::vec3(1);
+	//glm::mat4 m_worldMatrix = glm::mat4(1.0f);
+
 	std::wstring m_name;
 	uint32_t m_vertexCount = 0;
 	ComPtr<ID3D11Buffer> m_vertexBuffer;
@@ -77,5 +94,5 @@ private:
 	std::vector<uint32_t> m_indices;
 
 	std::vector<CurvatureInfo> m_curvatures;
-	glm::vec4 m_tangent;
+	glm::vec4 m_tangent = glm::vec4();
 };

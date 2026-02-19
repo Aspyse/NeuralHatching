@@ -2,6 +2,7 @@
 
 #include "imgui.h"
 #include <windows.h>
+#include "Scene.h"
 #include "Viewport.h"
 
 #include <functional>
@@ -16,7 +17,7 @@ public:
 	~UI() {};
 
 	bool Initialize(HWND hWnd);
-	void BindControls(Viewport* viewport, Model* model, std::function<void()> callback);
+	void BindControls(Viewport* viewport, Scene* scene, std::function<void()> callback);
 
 	void Shutdown();
 	bool Frame();
@@ -30,7 +31,8 @@ private:
 
 	char m_modelFile[256] = "";
 	Viewport* m_viewport = nullptr;
-	Model* m_model = nullptr;
+	//Model* m_model = nullptr;
+	Scene* m_scene = nullptr;
 	std::function<void()> m_synthesizeCallback;
 };
 

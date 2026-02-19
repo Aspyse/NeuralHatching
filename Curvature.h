@@ -14,7 +14,7 @@ public:
 	using Vertex = Model::Vertex;
 
 public:
-	void InitializeField(Model& model);
+	void InitializeField(Model& model, float scale);
 
 private:
 	const std::vector<uint32_t>& GetOneRing(uint32_t vertexIndex) const;
@@ -30,8 +30,8 @@ private:
 	float directionToAngle(const glm::vec3& dir, const glm::vec3& tangent_u, const glm::vec3& tangent_v);
 
 public:
-	const float RELIABLE_THRESHOLD = 0.5; //TODO: needs more testing
-	const float CURVATURE_THRESHOLD = 200;
+	const float RELIABLE_THRESHOLD = 0.6; //TODO: needs more testing
+	float CURVATURE_THRESHOLD = 30;
 
 	std::unordered_map<uint32_t, std::vector<uint32_t>> m_oneRings;
 };

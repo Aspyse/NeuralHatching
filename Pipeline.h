@@ -6,6 +6,7 @@
 #include <wrl/client.h>
 #include "Node.h"
 #include "GeometryNode.h"
+#include "Scene.h"
 
 using Microsoft::WRL::ComPtr;
 
@@ -39,7 +40,7 @@ public:
 	void Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, int textureWidth, int textureHeight);
 
 	void Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection, float nearPlane, float farPlane);
-	void Render(ID3D11DeviceContext* deviceContext, int indexCount, int shadingMode);
+	void Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shadingMode, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
 
 	void CaptureDatapoint(ID3D11DeviceContext* deviceContext, std::wstring prefix = L"");
 
@@ -48,6 +49,8 @@ private:
 	bool CreateRenderTarget(ID3D11Device* device, ID3D11RenderTargetView** rtv, ID3D11ShaderResourceView** srv, int textureWidth, int textureHeight);
 
 	bool InitializeDepthTarget(ID3D11Device* device, int textureWidth, int textureHeight);
+
+	void SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 worldMatrix, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
 
 	void Unbind(ID3D11DeviceContext* deviceContext);
 

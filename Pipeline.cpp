@@ -35,11 +35,6 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 // sidenote: probably the most elegant method i've tried so far
 void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection, float nearPlane, float farPlane)
 {
-	MatrixBuffer matrixBuffer;
-	matrixBuffer.worldMatrix = glm::transpose(glm::mat4x4(1.0f)); // TODO: replace identity matrix
-	matrixBuffer.viewMatrix = glm::transpose(viewMatrix);
-	matrixBuffer.projectionMatrix = glm::transpose(projectionMatrix);
-
 	//TODO: make not constant
 	DepthBuffer depthBuffer;
 	depthBuffer.nearPlane = nearPlane;
@@ -50,12 +45,22 @@ void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix
 	matcapBuffer.invView = glm::transpose(glm::inverse(viewMatrix));
 	matcapBuffer.lightDirectionVS = glm::mat3(viewMatrix) * glm::normalize(lightDirection); // TODO: test correctness
 
-	m_geometryNode->UpdateVSConstantBuffer<MatrixBuffer>(deviceContext, matrixBuffer, 0);
 	m_depthPassthruNode->UpdatePSConstantBuffer<DepthBuffer>(deviceContext, depthBuffer, 0);
 	m_matcapNode->UpdatePSConstantBuffer<MatcapBuffer>(deviceContext, matcapBuffer, 0);
 }
 
-void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int shadingMode)
+void Pipeline::SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 worldMatrix, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
+{
+	MatrixBuffer matrixBuffer;
+	//matrixBuffer.worldMatrix = glm::transpose(glm::mat4x4(1.0f));
+	matrixBuffer.worldMatrix = glm::transpose(worldMatrix); // TODO: replace identity matrix
+	matrixBuffer.viewMatrix = glm::transpose(viewMatrix);
+	matrixBuffer.projectionMatrix = glm::transpose(projectionMatrix);
+
+	m_geometryNode->UpdateVSConstantBuffer<MatrixBuffer>(deviceContext, matrixBuffer, 0);
+}
+
+void Pipeline::Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shadingMode, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
 {	
 	deviceContext->OMSetDepthStencilState(nullptr, 0);
 	deviceContext->ClearDepthStencilView(m_depthSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
@@ -76,9 +81,17 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, int indexCount, int sh
 	};
 	deviceContext->OMSetRenderTargets(4, gbufferRTVPtr, m_depthSV.Get());
 	// Set geometry shader
-	m_geometryNode->Render(deviceContext);
+	//m_geometryNode->Render(deviceContext);
+
+
 	// Draw model indices
-	deviceContext->DrawIndexed(indexCount, 0, 0);
+	for (auto& [id, model] : scene->GetModels()) {
+		SceneUpdate(deviceContext, model->GetWorldMatrix(), viewMatrix, projectionMatrix);
+		model->Render(deviceContext);
+		m_geometryNode->Render(deviceContext);
+		deviceContext->DrawIndexed(model->GetIndexCount(), 0, 0);
+	}
+	
 
 	Unbind(deviceContext);
 
@@ -161,7 +174,7 @@ void Pipeline::CaptureDatapoint(ID3D11DeviceContext* deviceContext, std::wstring
 
 	int max = 0;
 	for (auto& p : std::filesystem::directory_iterator(dir))
-		if (int n; sscanf(p.path().filename().string().c_str(), "%d_", &n) == 1)
+		if (int n; sscanf_s(p.path().filename().string().c_str(), "%d_", &n) == 1)
 			max = std::max(max, n);
 
 	ID3D11ShaderResourceView* srv = m_normalSRV.Get();

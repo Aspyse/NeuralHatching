@@ -46,7 +46,7 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc, float nearPlane, float farP
 	return true;
 }
 
-bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Model* model)
+bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Scene* scene)
 {
 	if (m_isSwapChainOccluded && m_swapChain->Present(0, DXGI_PRESENT_TEST) == DXGI_STATUS_OCCLUDED)
 	{
@@ -58,8 +58,8 @@ bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Mode
 	// Render 3D
 	glm::vec3 lightNorm = glm::normalize(MATCAP_LIGHT);
 	m_pipeline->Update(m_deviceContext.Get(), viewMatrix, projectionMatrix, lightNorm, m_near, m_far);
-	model->Render(m_deviceContext.Get());
-	m_pipeline->Render(m_deviceContext.Get(), model->GetIndexCount(), static_cast<int>(m_shadingMode));
+	//model->Render(m_deviceContext.Get());
+	m_pipeline->Render(m_deviceContext.Get(), scene, static_cast<int>(m_shadingMode), viewMatrix, projectionMatrix);
 
 	// Unbind
 	//ID3D11RenderTargetView* nullRTV = nullptr;
@@ -86,9 +86,14 @@ ID3D11DeviceContext* Viewport::GetContext()
 	return m_deviceContext.Get();
 }
 
-ShadingMode* Viewport::GetShadingMode()
+ShadingMode Viewport::GetShadingMode()
 {
-	return &m_shadingMode;
+	return m_shadingMode;
+}
+
+void Viewport::SetShadingMode(ShadingMode mode)
+{
+	m_shadingMode = mode;
 }
 
 void Viewport::CaptureDatapoint(std::wstring prefix)

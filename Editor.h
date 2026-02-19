@@ -5,7 +5,8 @@
 #endif
 
 #include "Camera.h"
-#include "Model.h"
+//#include "Model.h"
+#include "Scene.h"
 #include "Input.h"
 #include "UI.h"
 #include "Viewport.h"
@@ -19,16 +20,17 @@ public:
 	Editor() {};
 
 	bool Initialize();
-	void Synthesize();
 	void Run();
 	void Shutdown() const;
 
 private:
 	bool Frame();
+	void Synthesize();
 
 private:
 	std::unique_ptr<Camera> m_camera;
-	std::unique_ptr<Model> m_model;
+	//std::unique_ptr<Model> m_model;
+	std::unique_ptr<Scene> m_scene;
 	std::unique_ptr<Input> m_input;
 	std::unique_ptr<UI> m_ui;
 	std::unique_ptr<Viewport> m_viewport;

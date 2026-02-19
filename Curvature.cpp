@@ -4,8 +4,9 @@
 
 #include "Logging.h"
 
-void Curvature::InitializeField(Model& model)
+void Curvature::InitializeField(Model& model, float scale)
 {
+	CURVATURE_THRESHOLD *= scale; // TODO: better heuristic
 	
 	std::vector<CurvatureInfo> curvatures;
 	curvatures.reserve(model.m_vertexCount);
@@ -180,8 +181,8 @@ Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentVertex, const std
 
 	// Build local coordinate frame
 	// Fu = a11, Fv = a12 are tangent vectors
-	glm::vec3 Fu = a11;
-	glm::vec3 Fv = a12;
+	glm::vec3 Fu = a12;
+	glm::vec3 Fv = a11;
 	glm::vec3 n = glm::normalize(glm::cross(Fu, Fv));
 
 	// Create orthonormal tangent frame for angle encoding
@@ -219,10 +220,10 @@ Model::CurvatureInfo Curvature::SolveCurvature(uint32_t currentVertex, const std
 
 	// Solve generalized eigenvalue problem: second * v = lambda * first * v
 	// Or equivalently: first^-1 * second * v = lambda * v
-	Eigen::Matrix2f A = first.inverse() * second;
+	Eigen::GeneralizedSelfAdjointEigenSolver<Eigen::Matrix2f> solver(second, first);
 
 	// Compute eigenvalues and eigenvectors
-	Eigen::SelfAdjointEigenSolver<Eigen::Matrix2f> solver(A);
+	//Eigen::SelfAdjointEigenSolver<Eigen::Matrix2f> solver(A);
 
 	if (solver.info() != Eigen::Success) {
 		result.kappa1 = result.kappa2 = 0.0f;
