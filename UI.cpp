@@ -22,10 +22,10 @@ bool UI::Initialize(HWND hWnd)
 	return true; // TEMP
 }
 
-void UI::BindControls(Viewport* viewport, Model* model, std::function<void()> callback)
+void UI::BindControls(Viewport* viewport, Scene* scene, std::function<void()> callback)
 {
 	m_viewport = viewport;
-	m_model = model;
+	m_scene = scene;
 	m_synthesizeCallback = callback;
 }
 
@@ -46,10 +46,10 @@ bool UI::Frame()
 		ImGui::Begin("Editor Controls");
 		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / m_io->Framerate, m_io->Framerate);
 
-		ImGui::InputText("Model Path", m_modelFile, sizeof(m_modelFile));
-		if (ImGui::Button("Load Model"))
+		if (ImGui::InputText("Model Path", m_modelFile, sizeof(m_modelFile), ImGuiInputTextFlags_EnterReturnsTrue) ||
+			ImGui::Button("Load Model"))
 		{
-			m_model->Load(m_viewport->GetDevice(), m_modelFile);
+			m_scene->LoadModel(m_viewport->GetDevice(), m_modelFile);
 		}
 
 		ImGui::Separator();
@@ -70,6 +70,55 @@ bool UI::Frame()
 			m_synthesizeCallback();
 		}
 
+		ImGui::Separator();
+
+		static uint64_t selected_key = 0;
+
+		std::string preview_value;
+		auto it = m_scene->GetModels().find(selected_key);
+		if (it != m_scene->GetModels().end())
+		{
+			preview_value = std::to_string(it->first); // Get the string associated with the selected key
+		}
+
+		if (ImGui::BeginCombo("Model", preview_value.c_str()))
+		{
+			// Iterate through the unordered_map using a range-based for loop
+			for (auto& [key, value] : m_scene->GetModels())
+			{
+				// Check if this specific map item is the currently selected one
+				const bool is_selected = (selected_key == key);
+
+				// Draw the selectable item using the map's value (the string)
+				if (ImGui::Selectable(std::to_string(key).c_str(), is_selected))
+				{
+					selected_key = key; // Update the selected key if clicked
+
+					// Trigger your engine update here if needed:
+					// viewport->SetShadingMode(static_cast<ShadingMode>(selected_key));
+				}
+
+				if (is_selected)
+				{
+					ImGui::SetItemDefaultFocus();
+				}
+			}
+			ImGui::EndCombo();
+		}
+
+		glm::vec3 currentPos = it->second->GetPosition();
+		if (ImGui::DragFloat3("Position", &currentPos.x, 0.01f, -10.0f, 10.0f)) {
+			it->second->SetPosition(currentPos);
+		}
+		glm::vec3 currentRot = it->second->GetRotation();
+		if (ImGui::DragFloat3("Rotation", &currentRot.x, 0.2f, -180.0f, 180.0f)) {
+			it->second->SetRotation(currentRot);
+		}
+		glm::vec3 currentScl = it->second->GetScale();
+		if (ImGui::DragFloat3("Scale", &currentScl.x, 0.02f, -12.0f, 12.0f)) {
+			it->second->SetScale(currentScl);
+		}
+		
 		ImGui::End();
 	}
 

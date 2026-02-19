@@ -6,8 +6,8 @@
 bool Editor::Initialize()
 {
 	// Window init
-	const int SCREEN_WIDTH = 512,
-		SCREEN_HEIGHT = 512;
+	const int SCREEN_WIDTH = 1024,
+		SCREEN_HEIGHT = 1024;
 	const float NEAR_PLANE = 0.1f,
 		FAR_PLANE = 6.0f;
 	WNDCLASSEXW m_wc = { sizeof(m_wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Neural Hatching", nullptr };
@@ -49,12 +49,14 @@ bool Editor::Initialize()
 	
 	m_viewport->Initialize(m_hwnd, m_wc, NEAR_PLANE, FAR_PLANE);
 
-	m_model = std::make_unique<Model>();
-	m_model->Load(m_viewport->GetDevice(), "bun_zipper.ply");
+	//m_model = std::make_unique<Model>();
+	//m_model->Load(m_viewport->GetDevice(), "bun_zipper.ply");
+	m_scene = std::make_unique<Scene>();
+	m_scene->LoadModel(m_viewport->GetDevice(), "bun_zipper.ply");
 
 	std::function<void()> synthesizeCallback;
 	synthesizeCallback = [this]() { this->m_isSynthesisScheduled = true; };
-	m_ui->BindControls(m_viewport.get(), m_model.get(), synthesizeCallback);
+	m_ui->BindControls(m_viewport.get(), m_scene.get(), synthesizeCallback);
 
 	return true;
 }
@@ -86,7 +88,8 @@ void Editor::Synthesize()
 			m_camera->SetRotation(p, y, 0);
 			m_camera->Orbit(0, 0);
 			Frame();
-			m_viewport->CaptureDatapoint(m_model->GetName());
+			//m_viewport->CaptureDatapoint(m_model->GetName());
+			m_viewport->CaptureDatapoint(L""); // TODO: set a name
 		}
 	}
 }
@@ -144,7 +147,7 @@ bool Editor::Frame()
 
 	m_camera->Frame(static_cast<float>(-delta.x), static_cast<float>(-delta.y), m_input->GetScrollDelta(), m_input->IsMiddleMouseDown(), m_input->IsKeyDown(VK_SHIFT));
 
-	result = m_viewport->Render(m_camera->GetViewMatrix(), m_camera->GetProjectionMatrix(), m_model.get());
+	result = m_viewport->Render(m_camera->GetViewMatrix(), m_camera->GetProjectionMatrix(), m_scene.get());
 
 	if (!result)
 		return false;

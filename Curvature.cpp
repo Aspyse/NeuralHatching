@@ -4,8 +4,9 @@
 
 #include "Logging.h"
 
-void Curvature::InitializeField(Model& model)
+void Curvature::InitializeField(Model& model, float scale)
 {
+	CURVATURE_THRESHOLD *= scale; // TODO: better heuristic
 	
 	std::vector<CurvatureInfo> curvatures;
 	curvatures.reserve(model.m_vertexCount);

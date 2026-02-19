@@ -14,7 +14,7 @@ public:
 	using Vertex = Model::Vertex;
 
 public:
-	void InitializeField(Model& model);
+	void InitializeField(Model& model, float scale);
 
 private:
 	const std::vector<uint32_t>& GetOneRing(uint32_t vertexIndex) const;
@@ -31,7 +31,7 @@ private:
 
 public:
 	const float RELIABLE_THRESHOLD = 0.6; //TODO: needs more testing
-	const float CURVATURE_THRESHOLD = 40;
+	float CURVATURE_THRESHOLD = 30;
 
 	std::unordered_map<uint32_t, std::vector<uint32_t>> m_oneRings;
 };

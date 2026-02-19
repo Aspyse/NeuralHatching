@@ -3,10 +3,17 @@
 #include <miniply.h>
 #include "rapidobj/rapidobj.hpp"
 
+#include <glm/gtc/matrix_transform.hpp>
+
 #include "Logging.h"
 
 Model::Model() {}
 Model::~Model() {}
+
+void Model::Initialize(uint64_t uid)
+{
+	m_uid = uid;
+}
 
 bool Model::Load(ID3D11Device* device, const char* filename)
 {
@@ -63,9 +70,56 @@ int Model::GetIndexCount()
 	return static_cast<int>(m_indices.size());
 }
 
+glm::mat4 Model::GetWorldMatrix()
+{
+	glm::mat4 worldMatrix = glm::mat4(1.0f);
+
+	worldMatrix = glm::translate(worldMatrix, m_position);
+
+	worldMatrix = glm::rotate(worldMatrix, glm::radians(m_rotation.y), glm::vec3(0.0f, 1.0f, 0.0f)); // Yaw
+	worldMatrix = glm::rotate(worldMatrix, glm::radians(m_rotation.x), glm::vec3(1.0f, 0.0f, 0.0f)); // Pitch
+	worldMatrix = glm::rotate(worldMatrix, glm::radians(m_rotation.z), glm::vec3(0.0f, 0.0f, 1.0f)); // Roll
+
+	worldMatrix = glm::scale(worldMatrix, m_scale);
+
+	return worldMatrix;
+}
+
+glm::vec3 Model::GetPosition()
+{
+	return m_position;
+}
+glm::vec3 Model::GetRotation()
+{
+	return m_rotation;
+}
+glm::vec3 Model::GetScale()
+{
+	return m_scale;
+}
+
+void Model::SetPosition(glm::vec3 newPos)
+{
+	m_position = newPos;
+}
+void Model::SetRotation(glm::vec3 newRot)
+{
+	m_rotation = newRot;
+}
+void Model::SetScale(glm::vec3 newScl)
+{
+	m_scale = newScl;
+}
+
+
 std::wstring Model::GetName()
 {
 	return m_name;
+}
+
+uint64_t Model::GetUID()
+{
+	return m_uid;
 }
 
 bool Model::LoadPLY(const char* filename)
@@ -265,7 +319,7 @@ void Model::CalculateCrossField()
 
 	// TODO: check if idiomatic
 	Curvature* c = new Curvature();
-	c->InitializeField(*this);
+	c->InitializeField(*this, m_scale.x);
 
 	for (uint32_t i = 0; i < m_vertexCount; ++i) {
 		//m_vertices[i].crossAngle.x = m_curvatures[i].theta;
@@ -339,7 +393,9 @@ void Model::Autonormalize(float diameter)
 	float scale = diameter / maxDist;
 
 	// Apply
-	for (auto& v : m_vertices) {
+	/*for (auto& v : m_vertices) {
 		v.position = (v.position - center) * scale;
-	}
+	}*/
+	m_position = -center*scale;
+	m_scale = glm::vec3(scale);
 }

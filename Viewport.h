@@ -6,6 +6,7 @@
 #include <windows.h>
 #include <wrl/client.h>
 #include "Model.h"
+#include "Scene.h"
 #include "Pipeline.h"
 
 using Microsoft::WRL::ComPtr;
@@ -37,7 +38,7 @@ public:
 
 	bool Initialize(HWND hWnd, WNDCLASSEXW, float nearPlane, float farPlane);
 	void Shutdown();
-	bool Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Model* model);
+	bool Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Scene* scene);
 
 	ID3D11Device* GetDevice();
 	ID3D11DeviceContext* GetContext();
