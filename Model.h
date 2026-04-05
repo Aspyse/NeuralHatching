@@ -1,6 +1,7 @@
 #pragma once
 
 #include <d3d11.h>
+#include <fastgltf/core.hpp>
 #include <glm/vec2.hpp>
 #include <glm/vec3.hpp>
 #include <glm/vec4.hpp>
@@ -77,6 +78,7 @@ private:
 
 	bool LoadPLY(const char* filename);
 	bool LoadOBJ(const char* filename);
+	bool LoadGLB(const char* filename);
 
 private:
 	uint64_t m_uid = 0;

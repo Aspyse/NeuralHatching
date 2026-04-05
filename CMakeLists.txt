@@ -1,7 +1,12 @@
 ﻿# CMakeList.txt : CMake project for NeuralHatching, include source and define
 # project specific logic here.
 #
-cmake_minimum_required (VERSION 3.11) # 3.11 for FetchContent
+cmake_minimum_required (VERSION 3.17) # 3.11 for FetchContent
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+add_definitions(-DNOMINMAX)
+
 
 # Enable Hot Reload for MSVC compilers if supported.
 if (POLICY CMP0141)
@@ -13,6 +18,13 @@ project ("NeuralHatching")
 
 # FetchContent
 include(FetchContent)
+
+FetchContent_Declare(
+  fastgltf
+  GIT_REPOSITORY https://github.com/spnda/fastgltf.git
+  GIT_TAG main)
+
+FetchContent_MakeAvailable(fastgltf)
 
 FetchContent_Declare(
 	glm
@@ -74,13 +86,14 @@ add_executable (NeuralHatching
 target_include_directories (NeuralHatching PRIVATE
 	"${CMAKE_SOURCE_DIR}/Shaders/Nodes"
 	"${CMAKE_SOURCE_DIR}/include"
-	"${CMAKE_SOURCE_DIR}/include/Eigen"
+	"${CMAKE_SOURCE_DIR}/include/eigen"
 	"${CMAKE_SOURCE_DIR}/include/LBFGSpp"
 	"${CMAKE_SOURCE_DIR}/include/miniply"
 	"${CMAKE_SOURCE_DIR}/include/imgui"
 	"${CMAKE_SOURCE_DIR}/include/imgui/backends"
 )
 
+target_link_libraries(NeuralHatching PRIVATE fastgltf::fastgltf)
 target_link_libraries(NeuralHatching PRIVATE d3d11)
 target_link_libraries(NeuralHatching PRIVATE DirectXTK)
 target_link_libraries(NeuralHatching PRIVATE glm::glm)
@@ -122,9 +135,7 @@ add_custom_target(
 
 add_dependencies(NeuralHatching copy_resources)
 
-if (CMAKE_VERSION VERSION_GREATER 3.12)
-  set_property(TARGET NeuralHatching PROPERTY CXX_STANDARD 17)
-endif()
+target_compile_definitions(NeuralHatching PRIVATE UNICODE _UNICODE)
 
 set_target_properties(NeuralHatching PROPERTIES WIN32_EXECUTABLE TRUE)
 

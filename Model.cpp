@@ -2,8 +2,14 @@
 #include "Curvature.h"
 #include <miniply.h>
 #include "rapidobj/rapidobj.hpp"
+#include <fastgltf/tools.hpp>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/quaternion.hpp>
+#include <functional>
 
 #include "Logging.h"
 
@@ -32,6 +38,10 @@ bool Model::Load(ID3D11Device* device, const char* filename)
 	else if (ext == ".obj" || ext == ".OBJ") {
 		Logging::DEBUG_LOG(L"LOADING OBJ MODEL ", m_name, L"...");
 		if (!LoadOBJ(fullFilename.c_str())) return false;
+	}
+	else if (ext == ".glb" || ext == ".glb") {
+		Logging::DEBUG_LOG(L"LOADING GLB MODEL ", m_name, L"...");
+		if (!LoadGLB(fullFilename.c_str())) return false;
 	}
 	else return false;
 
@@ -187,7 +197,7 @@ bool Model::LoadOBJ(const char* filename)
 	rapidobj::Result result = rapidobj::ParseFile(filename);
 
 	if (result.error) {
-		OutputDebugString(result.error.code.message().c_str());
+		OutputDebugStringA(result.error.code.message().c_str());
 		return false;
 	}
 
@@ -271,6 +281,132 @@ bool Model::LoadOBJ(const char* filename)
 
 	if (!flagNormal)
 		CalculateNormals();
+
+	return true;
+}
+
+bool Model::LoadGLB(const char* filename)
+{
+	Logging::DEBUG_LOG(L"FASTGLTF PARSING...");
+	m_vertices.clear();
+	m_indices.clear();
+
+	auto ext = fastgltf::Extensions::KHR_mesh_quantization;
+	fastgltf::Parser parser{ ext };
+	std::filesystem::path filePath(filename);
+
+	auto data = fastgltf::GltfDataBuffer::FromPath(filePath);
+	if (data.error() != fastgltf::Error::None) return false;
+
+	auto asset = parser.loadGltfBinary(data.get(), filePath.parent_path(), fastgltf::Options::None);
+	if (asset.error() != fastgltf::Error::None) return false;
+
+	UINT defaultScene = asset->defaultScene.has_value() ? asset->defaultScene.value() : 0;
+	const auto& scene = asset->scenes[defaultScene];
+
+	Logging::DEBUG_LOG(L"READING GLB VERTICES AND INDICES...");
+	Logging::DEBUG_START();
+
+	// Define a recursive function to process the node hierarchy
+	std::function<void(size_t, glm::mat4)> processNode = [&](size_t nodeIndex, glm::mat4 parentTransform) {
+		const auto& node = asset->nodes[nodeIndex];
+
+		// 1. Calculate Local Transform safely
+		glm::mat4 localTransform = glm::mat4(1.0f);
+		if (auto* trs = std::get_if<fastgltf::TRS>(&node.transform)) {
+			glm::mat4 t = glm::translate(glm::mat4(1.0f), glm::vec3(trs->translation[0], trs->translation[1], trs->translation[2]));
+			glm::quat q(trs->rotation[3], trs->rotation[0], trs->rotation[1], trs->rotation[2]);
+			glm::mat4 r = glm::toMat4(q);
+			glm::mat4 s = glm::scale(glm::mat4(1.0f), glm::vec3(trs->scale[0], trs->scale[1], trs->scale[2]));
+
+			localTransform = t * r * s;
+		}
+		else if (auto* mat = std::get_if<fastgltf::math::fmat4x4>(&node.transform)) {
+			// fastgltf::math::fmat4x4 and glm::mat4 are both 16 continuous floats in column-major order.
+			// Reinterpret casting safely bridges the two libraries.
+			localTransform = glm::make_mat4x4(reinterpret_cast<const float*>(mat));
+		}
+
+		// 2. Accumulate World Transform
+		glm::mat4 worldTransform = parentTransform * localTransform;
+
+		// 3. Process the mesh if this node has one
+		if (node.meshIndex.has_value()) {
+			const auto& mesh = asset->meshes[node.meshIndex.value()];
+
+			// Compute the normal matrix once per mesh (Transpose of the inverse of the upper-left 3x3)
+			glm::mat3 normalMatrix = glm::transpose(glm::inverse(glm::mat3(worldTransform)));
+
+			for (const auto& primitive : mesh.primitives) {
+				UINT baseVertex = static_cast<UINT>(m_vertices.size());
+
+				// --- Positions ---
+				std::vector<glm::vec3> positions;
+				if (auto* it = primitive.findAttribute("POSITION"); it != primitive.attributes.end()) {
+					auto& accessor = asset->accessors[it->accessorIndex];
+					positions.resize(accessor.count);
+					fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset.get(), accessor,
+						[&](fastgltf::math::fvec3 val, UINT i) {
+							positions[i] = glm::vec3(val[0], val[1], val[2]);
+						});
+				}
+
+				// --- Normals ---
+				std::vector<glm::vec3> normals;
+				if (auto it = primitive.findAttribute("NORMAL"); it != primitive.attributes.end()) {
+					auto& accessor = asset->accessors[it->accessorIndex];
+					normals.resize(accessor.count);
+					fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset.get(), accessor,
+						[&](fastgltf::math::fvec3 val, UINT i) {
+							normals[i] = glm::vec3(val[0], val[1], val[2]);
+						});
+				}
+
+				// --- Assemble Vertices ---
+				for (size_t i = 0; i < positions.size(); ++i) {
+					Vertex v;
+
+					// Apply the accumulated world transform to the position
+					glm::vec4 worldPos = worldTransform * glm::vec4(positions[i], 1.0f);
+					v.position = glm::vec3(worldPos);
+
+					// Apply the normal matrix to the normal (to handle non-uniform scaling properly)
+					glm::vec3 localNormal = (i < normals.size()) ? normals[i] : glm::vec3(0.0f);
+					if (glm::length(localNormal) > 0.001f) {
+						v.normal = glm::normalize(normalMatrix * localNormal);
+					}
+					else {
+						v.normal = localNormal;
+					}
+
+					v.uv = glm::vec2(0.0f, 0.0f);
+
+					m_vertices.push_back(v);
+				}
+
+				// --- Assemble Indices ---
+				if (primitive.indicesAccessor) {
+					auto& accessor = asset->accessors[*primitive.indicesAccessor];
+					fastgltf::iterateAccessorWithIndex<uint32_t>(asset.get(), accessor,
+						[&](uint32_t val, UINT i) {
+							m_indices.push_back(val + baseVertex);
+						});
+				}
+			}
+		}
+
+		// 4. Recursively process all children of this node
+		for (auto childIndex : node.children) {
+			processNode(childIndex, worldTransform);
+		}
+		};
+
+	// Kick off the recursion using the scene's root nodes and an identity matrix
+	for (auto nodeIndex : scene.nodeIndices) {
+		processNode(nodeIndex, glm::mat4(1.0f));
+	}
+
+	m_vertexCount = static_cast<uint32_t>(m_vertices.size());
 
 	return true;
 }
