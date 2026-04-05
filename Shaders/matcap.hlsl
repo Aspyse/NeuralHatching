@@ -33,7 +33,8 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
 {
     const float PI = 3.14159;
     const float4 COLOR = float4(2, 2, 2, 1);
-    const float3 AMBIENT = float3(0.1, 0.3, 0.3);
+    const float3 AMBIENT = float3(0.12, 0.12, 0.12);
+    const float3 BG = float3(0.1, 0.1, 0.1);
     const float ROUGHNESS = 0.2;
     
     float4 albedo = COLOR;
@@ -57,7 +58,7 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
     float4 ambient = float4(AMBIENT, 1);
     float depth = depthTexture.Sample(pointClamp, input.uv).r;
     if (depth == 1)
-        return ambient;
+        return float4(BG, 1);
 
 	// COOK-TORRANCE BSDF: https://learnopengl.com/PBR/Theory
     float NdotL = saturate(dot(normal, L));
