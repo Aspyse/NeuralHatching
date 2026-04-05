@@ -106,17 +106,29 @@ bool UI::Frame()
 			ImGui::EndCombo();
 		}
 
-		glm::vec3 currentPos = it->second->GetPosition();
-		if (ImGui::DragFloat3("Position", &currentPos.x, 0.01f, -10.0f, 10.0f)) {
-			it->second->SetPosition(currentPos);
-		}
-		glm::vec3 currentRot = it->second->GetRotation();
-		if (ImGui::DragFloat3("Rotation", &currentRot.x, 0.2f, -180.0f, 180.0f)) {
-			it->second->SetRotation(currentRot);
-		}
-		glm::vec3 currentScl = it->second->GetScale();
-		if (ImGui::DragFloat3("Scale", &currentScl.x, 0.02f, -12.0f, 12.0f)) {
-			it->second->SetScale(currentScl);
+		if (it != m_scene->GetModels().end())
+		{
+			glm::vec3 currentPos = it->second->GetPosition();
+			if (ImGui::DragFloat3("Position", &currentPos.x, 0.01f, -10.0f, 10.0f))
+			{
+				it->second->SetPosition(currentPos);
+			}
+			glm::vec3 currentRot = it->second->GetRotation();
+			if (ImGui::DragFloat3("Rotation", &currentRot.x, 0.2f, -180.0f, 180.0f))
+			{
+				it->second->SetRotation(currentRot);
+			}
+			glm::vec3 currentScl = it->second->GetScale();
+			if (ImGui::DragFloat3("Scale", &currentScl.x, 0.02f, -12.0f, 12.0f))
+			{
+				it->second->SetScale(currentScl);
+			}
+
+			if (ImGui::Button("Delete Model"))
+			{
+				m_scene->DeleteModel(it->first);
+				selected_key = 0;
+			}
 		}
 		
 		ImGui::End();
