@@ -6,8 +6,8 @@
 bool Editor::Initialize()
 {
 	// Window init
-	const int SCREEN_WIDTH = 1024,
-		SCREEN_HEIGHT = 1024;
+	const int SCREEN_WIDTH = 512,
+		SCREEN_HEIGHT = 512;
 	const float NEAR_PLANE = 0.1f,
 		FAR_PLANE = 6.0f;
 	WNDCLASSEXW m_wc = { sizeof(m_wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Neural Hatching", nullptr };
@@ -63,9 +63,9 @@ bool Editor::Initialize()
 
 void Editor::Synthesize()
 {
-	float pitchMin = -60;
-	float pitchMax = 60;
-	int pitchSteps = 3;
+	float pitchMin = -75;
+	float pitchMax = 75;
+	int pitchSteps = 5;
 	int pitchInc = (pitchMax - pitchMin) / pitchSteps;
 	
 	int yawSteps = 120;
@@ -88,8 +88,8 @@ void Editor::Synthesize()
 			m_camera->SetRotation(p, y, 0);
 			m_camera->Orbit(0, 0);
 			Frame();
-			//m_viewport->CaptureDatapoint(m_model->GetName());
-			m_viewport->CaptureDatapoint(L""); // TODO: set a name
+			m_viewport->CaptureDatapoint(m_scene->GetModels().begin()->second->GetName());
+			//m_viewport->CaptureDatapoint(L""); // TODO: set a name
 		}
 	}
 }

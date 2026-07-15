@@ -19,10 +19,11 @@ struct PixelInputType
 {
     float4 position : SV_POSITION;
     float2 uv : TEXCOORD0;
-    nointerpolation float3 hatch : TEXCOORD1;
-    nointerpolation float3 hatch2 : TEXCOORD2;
+    //nointerpolation float3 hatch : TEXCOORD1;
+    //nointerpolation float3 hatch2 : TEXCOORD2;
+    float3 hatch : TEXCOORD1;
+    float3 hatch2 : TEXCOORD2;
     nointerpolation float reliable : TEXCOORD3;
-    //float3 hatch : TEXCOORD1;
     float3 normal : NORMAL;
 };
 
@@ -41,8 +42,20 @@ PixelInputType GeometryVertexShader(VertexInputType input)
     output.normal = N;
     
     // output cross field
-    output.hatch = normalize(input.hatch);
-    output.hatch2 = normalize(input.hatch2);
+    
+    float3 objHatch = input.hatch;
+    float3 objHatch2 = input.hatch2;
+    
+    float3 referenceRight = float3(1.0f, 0.0f, 0.0f);
+    
+    if (dot(objHatch, referenceRight) < 0.0f)
+        objHatch = -objHatch;
+    if (dot(objHatch2, referenceRight) < 0.0f)
+        objHatch2 = -objHatch2;
+    
+    output.hatch = normalize(objHatch);
+    output.hatch2 = normalize(objHatch2);
+    
     output.reliable = input.reliable;
     
     return output;
@@ -59,16 +72,31 @@ struct PixelOutputType
 PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
 {
     PixelOutputType output;
+    
+    float3x3 worldView = (float3x3) mul(worldMatrix, viewMatrix);
 
-    float3 normal = mul((float3x3) viewMatrix, normalize(input.normal));
+    float3 normal = normalize(input.normal);
+    //normal = mul((float3x3) worldView, normal);
+    normal = mul(normal, worldView);
+    normal = normalize(normal);
     normal = normal * 0.5f + 0.5f;
     
-    // hatch field placeholder
-    //float hatch = input.hatch;
-    float3 hatch = mul((float3x3) viewMatrix, normalize(input.hatch));
-    hatch = hatch * 0.5f + 0.5f;
+    /*
+    float3 objHatch = input.hatch;
+    float3 objHatch2 = input.hatch2;
     
-    float3 hatch2 = mul((float3x3) viewMatrix, normalize(input.hatch2));
+    float3 referenceRight = float3(1.0f, 0.0f, 0.0f);
+    
+    if (dot(objHatch, referenceRight) < 0.0f)
+        objHatch = -objHatch;
+    if (dot(objHatch2, referenceRight) < 0.0f)
+        objHatch2 = -objHatch2;
+    */
+    
+    float3 hatch = normalize(mul(input.hatch, worldView));
+    float3 hatch2 = normalize(mul(input.hatch2, worldView));
+
+    hatch = hatch * 0.5f + 0.5f;
     hatch2 = hatch2 * 0.5f + 0.5f;
     
     output.normal = normal;

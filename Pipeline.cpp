@@ -26,6 +26,7 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	m_outNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/fullscreen.hlsl", "BaseVertexShader", "PostprocessShader");
 
 	m_geometryNode->AddVSConstantBuffer<MatrixBuffer>(device);
+	m_geometryNode->AddPSConstantBuffer<MatrixBuffer>(device);
 	m_depthPassthruNode->AddPSConstantBuffer<DepthBuffer>(device);
 	m_matcapNode->AddPSConstantBuffer<MatcapBuffer>(device);
 
@@ -58,6 +59,7 @@ void Pipeline::SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 world
 	matrixBuffer.projectionMatrix = glm::transpose(projectionMatrix);
 
 	m_geometryNode->UpdateVSConstantBuffer<MatrixBuffer>(deviceContext, matrixBuffer, 0);
+	m_geometryNode->UpdatePSConstantBuffer<MatrixBuffer>(deviceContext, matrixBuffer, 0);
 }
 
 void Pipeline::Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shadingMode, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
@@ -186,6 +188,16 @@ void Pipeline::CaptureDatapoint(ID3D11DeviceContext* deviceContext, std::wstring
 		res.Get(),
 		GUID_ContainerFormatPng,
 		(dir / (std::to_wstring(max + 1) + L"_normal.png")).c_str()
+	);
+
+	// OPTIONAL
+	srv = m_matcapSRV.Get();
+	srv->GetResource(&res);
+	hr = DirectX::SaveWICTextureToFile(
+		deviceContext,
+		res.Get(),
+		GUID_ContainerFormatPng,
+		(dir / (std::to_wstring(max + 1) + L"_matcap.png")).c_str()
 	);
 
 	srv = m_hatchSRV.Get();
