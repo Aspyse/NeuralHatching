@@ -1,4 +1,5 @@
 #include "UI.h"
+#include <algorithm>
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
 
@@ -44,25 +45,56 @@ bool UI::Frame()
 
 	static uint64_t selected_key = 0;
 
-	const float viewportSize = 512.0f;
 	const ImVec2 displaySize = m_io->DisplaySize;
+	const int viewCount = m_viewport->GetViewCount();
 
-	// Keep the render viewport a fixed 512x512 square, centered on screen.
-	// The scene/inspector panels fill whatever space is left on either side.
-	const float viewportX = (displaySize.x - viewportSize) * 0.5f;
-	const float viewportY = (displaySize.y - viewportSize) * 0.5f;
+	// Grid geometry (view count, size, position) lives in one place —
+	// Viewport::RebuildViews — this just reads it back as a bounding box.
+	float minX = m_viewport->GetViewRect(0).TopLeftX, minY = m_viewport->GetViewRect(0).TopLeftY;
+	float maxX = minX, maxY = minY;
+	for (int i = 0; i < viewCount; i++)
+	{
+		const D3D11_VIEWPORT& r = m_viewport->GetViewRect(i);
+		minX = std::min(minX, r.TopLeftX);
+		minY = std::min(minY, r.TopLeftY);
+		maxX = std::max(maxX, r.TopLeftX + r.Width);
+		maxY = std::max(maxY, r.TopLeftY + r.Height);
+	}
+	const float viewportX = minX;
+	const float viewportY = minY;
+	const float viewportSize = maxX - minX; // grid is square
 
 	const float sceneWidth = viewportX;
 	const float inspectorWidth = displaySize.x - (viewportX + viewportSize);
 
-	// Overlay the framerate directly onto the viewport's top-left corner,
-	// on top of the rendered scene, rather than inside a panel.
+	// Overlay the framerate and each cell's assigned shading mode directly
+	// onto the grid, on top of the rendered scene, rather than inside a panel.
 	{
+		
 		char fpsText[64];
 		snprintf(fpsText, sizeof(fpsText), "%.3f ms/frame (%.1f FPS)", 1000.0f / m_io->Framerate, m_io->Framerate);
 
 		ImDrawList* viewportOverlay = ImGui::GetForegroundDrawList();
-		viewportOverlay->AddText(ImVec2(viewportX + 8.0f, viewportY + 8.0f), IM_COL32(255, 255, 255, 255), fpsText);
+		viewportOverlay->AddText(ImVec2(maxX - 200.0f, viewportY + 8.0f), IM_COL32(180, 180, 180, 255), fpsText);
+
+		for (int cell = 0; cell < viewCount; cell++)
+		{
+			const D3D11_VIEWPORT& cellRect = m_viewport->GetViewRect(cell);
+
+			int modeIndex = static_cast<int>(m_viewport->GetShadingMode(cell));
+			const char* modeName = (modeIndex >= 0 && modeIndex < N_SHADING_MODES) ? SHADING_MODE_NAMES[modeIndex] : "?";
+			viewportOverlay->AddText(ImVec2(cellRect.TopLeftX + 8.0f, cellRect.TopLeftY + 8.0f), IM_COL32(180, 180, 180, 255), modeName);
+		}
+
+		// Thin separators so the four cells read as a distinct grid.
+		// Only meaningful in Grid2x2 mode — a single view has no seam.
+		if (m_viewport->GetLayoutMode() == LayoutMode::Grid2x2)
+		{
+			const float midX = viewportX + viewportSize * 0.5f;
+			const float midY = viewportY + viewportSize * 0.5f;
+			viewportOverlay->AddLine(ImVec2(midX, viewportY), ImVec2(midX, viewportY + viewportSize), IM_COL32(0, 0, 0, 180), 1.0f);
+			viewportOverlay->AddLine(ImVec2(viewportX, midY), ImVec2(viewportX + viewportSize, midY), IM_COL32(0, 0, 0, 180), 1.0f);
+		}
 	}
 
 	const ImGuiWindowFlags panelFlags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
@@ -115,11 +147,30 @@ bool UI::Frame()
 
 		ImGui::Separator();
 
-		ShadingMode mode = m_viewport->GetShadingMode();
-		int currentIndex = static_cast<int>(mode);
+		LayoutMode layoutMode = m_viewport->GetLayoutMode();
+		int layoutIndex = (layoutMode == LayoutMode::Grid2x2) ? 1 : 0;
+		static const char* LAYOUT_MODE_NAMES[] = { "Single", "2x2 Grid" };
+		if (ImGui::Combo("Layout", &layoutIndex, LAYOUT_MODE_NAMES, IM_ARRAYSIZE(LAYOUT_MODE_NAMES)))
+			m_viewport->SetLayoutMode(layoutIndex == 1 ? LayoutMode::Grid2x2 : LayoutMode::Single);
 
-		if (ImGui::Combo("Shading Mode", &currentIndex, SHADING_MODE_NAMES, N_SHADING_MODES))
-			m_viewport->SetShadingMode(static_cast<ShadingMode>(currentIndex));
+		ImGui::Separator();
+
+		static const char* cellLabels[4] = { "Top Left", "Top Right", "Bottom Left", "Bottom Right" };
+		const int viewCount = m_viewport->GetViewCount();
+		for (int cell = 0; cell < viewCount; cell++)
+		{
+			ShadingMode mode = m_viewport->GetShadingMode(cell);
+			int currentIndex = static_cast<int>(mode);
+
+			// A single view has no "position", so give it a plain label
+			// instead of a directional one.
+			const char* label = (viewCount == 1) ? "Shading Mode" : cellLabels[cell];
+
+			ImGui::PushID(cell);
+			if (ImGui::Combo(label, &currentIndex, SHADING_MODE_NAMES, N_SHADING_MODES))
+				m_viewport->SetShadingMode(cell, static_cast<ShadingMode>(currentIndex));
+			ImGui::PopID();
+		}
 
 		if (ImGui::Button("Capture Datapoint"))
 		{

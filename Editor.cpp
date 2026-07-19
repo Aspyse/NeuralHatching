@@ -6,8 +6,8 @@
 bool Editor::Initialize()
 {
 	// Window init
-	const int SCREEN_WIDTH = 1024,
-		SCREEN_HEIGHT = 512;
+	const int SCREEN_WIDTH = 1920,
+		SCREEN_HEIGHT = 1024;
 	const float NEAR_PLANE = 0.1f,
 		FAR_PLANE = 6.0f;
 	WNDCLASSEXW m_wc = { sizeof(m_wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Neural Hatching", nullptr };

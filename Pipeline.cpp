@@ -3,6 +3,8 @@
 void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, int textureWidth, int textureHeight)
 {
 	m_outRTV = outRTV;
+	m_bufferWidth = textureWidth;
+	m_bufferHeight = textureHeight;
 
 	bool result = CreateRenderTarget(device, m_normalRTV.GetAddressOf(), m_normalSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_depthPassthruRTV.GetAddressOf(), m_depthPassthruSRV.GetAddressOf(), textureWidth, textureHeight);
@@ -62,8 +64,20 @@ void Pipeline::SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 world
 	m_geometryNode->UpdatePSConstantBuffer<MatrixBuffer>(deviceContext, matrixBuffer, 0);
 }
 
-void Pipeline::Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shadingMode, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
-{	
+void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* scene, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
+{
+	// Runs exactly once per frame, regardless of how many views composite
+	// from it afterward. This method has no knowledge of grids, windows,
+	// or view counts — it only knows how to fill the g-buffer.
+	D3D11_VIEWPORT fullViewport = {};
+	fullViewport.TopLeftX = 0.0f;
+	fullViewport.TopLeftY = 0.0f;
+	fullViewport.Width = static_cast<float>(m_bufferWidth);
+	fullViewport.Height = static_cast<float>(m_bufferHeight);
+	fullViewport.MinDepth = 0.0f;
+	fullViewport.MaxDepth = 1.0f;
+	deviceContext->RSSetViewports(1, &fullViewport);
+
 	deviceContext->OMSetDepthStencilState(nullptr, 0);
 	deviceContext->ClearDepthStencilView(m_depthSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
 	deviceContext->ClearRenderTargetView(m_normalRTV.Get(), CLEAR_COLOR);
@@ -125,40 +139,46 @@ void Pipeline::Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shad
 	deviceContext->Draw(3, 0);
 
 	Unbind(deviceContext);
+}
 
-	// Bind out RTV
+void Pipeline::CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode, D3D11_VIEWPORT viewportRect)
+{
+	// Composites ONE g-buffer channel into ONE rect of the output target.
+	// No knowledge of how many other views exist or how they're arranged —
+	// that's the caller's (Viewport's) job. Call this once per view, after
+	// RenderGeometryPass has run once for the frame.
 	ID3D11RenderTargetView* outRTVPtr = m_outRTV.Get();
 	deviceContext->OMSetRenderTargets(1, &outRTVPtr, nullptr);
-	// Bind selected SRV
-	ID3D11ShaderResourceView* selectedSRV = nullptr;
-	switch (shadingMode)
-	{
-	case 0: // Matcap
-		selectedSRV = m_matcapSRV.Get();
-		break;
-	case 1: // Normal
-		selectedSRV = m_normalSRV.Get();
-		break;
-	case 2: // Depth
-		selectedSRV = m_depthPassthruSRV.Get();
-		break;
-	case 3: // Cross field
-		selectedSRV = m_hatchSRV.Get();
-		break;
-	case 4: // Cross field 2
-		selectedSRV = m_hatch2SRV.Get();
-		break;
-	case 5: // Reliability
-		selectedSRV = m_reliabilitySRV.Get();
-		break;
-	}
+	deviceContext->RSSetViewports(1, &viewportRect);
+
+	ID3D11ShaderResourceView* selectedSRV = GetSRVForShadingMode(shadingMode);
 	deviceContext->PSSetShaderResources(0, 1, &selectedSRV);
-	// Set passthrough shader
+
 	m_outNode->Render(deviceContext);
-	// Draw fullscreen tri
 	deviceContext->Draw(3, 0);
 
 	Unbind(deviceContext);
+}
+
+ID3D11ShaderResourceView* Pipeline::GetSRVForShadingMode(int shadingMode)
+{
+	switch (shadingMode)
+	{
+	case 0: // Matcap
+		return m_matcapSRV.Get();
+	case 1: // Normal
+		return m_normalSRV.Get();
+	case 2: // Depth
+		return m_depthPassthruSRV.Get();
+	case 3: // Cross field
+		return m_hatchSRV.Get();
+	case 4: // Cross field 2
+		return m_hatch2SRV.Get();
+	case 5: // Reliability
+		return m_reliabilitySRV.Get();
+	default:
+		return nullptr;
+	}
 }
 
 #include <filesystem>
@@ -247,7 +267,7 @@ void Pipeline::Unbind(ID3D11DeviceContext* deviceContext)
 
 bool Pipeline::CreateRenderTarget(ID3D11Device* device, ID3D11RenderTargetView** rtv, ID3D11ShaderResourceView** srv, int textureWidth, int textureHeight)
 {
-	ID3D11Texture2D* texture = nullptr;
+	ComPtr<ID3D11Texture2D> texture;
 
 	D3D11_TEXTURE2D_DESC td;
 	ZeroMemory(&td, sizeof(td));
@@ -260,22 +280,19 @@ bool Pipeline::CreateRenderTarget(ID3D11Device* device, ID3D11RenderTargetView**
 	td.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 	td.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 
-	HRESULT result = device->CreateTexture2D(&td, nullptr, &texture);
+	HRESULT result = device->CreateTexture2D(&td, nullptr, texture.GetAddressOf());
 	if (FAILED(result))
 		return false;
 
 	// RTV
-	result = device->CreateRenderTargetView(texture, nullptr, rtv);
+	result = device->CreateRenderTargetView(texture.Get(), nullptr, rtv);
 	if (FAILED(result))
 		return false;
 
 	// SRV
-	result = device->CreateShaderResourceView(texture, nullptr, srv);
+	result = device->CreateShaderResourceView(texture.Get(), nullptr, srv);
 	if (FAILED(result))
 		return false;
-
-	texture->Release();
-	texture = nullptr;
 
 	return true;
 }
@@ -297,8 +314,8 @@ bool Pipeline::InitializeDepthTarget(ID3D11Device* device, int textureWidth, int
 	depthDesc.CPUAccessFlags = 0;
 	depthDesc.MiscFlags = 0;
 
-	ID3D11Texture2D* depthTexture;
-	HRESULT result = device->CreateTexture2D(&depthDesc, nullptr, &depthTexture);
+	ComPtr<ID3D11Texture2D> depthTexture;
+	HRESULT result = device->CreateTexture2D(&depthDesc, nullptr, depthTexture.GetAddressOf());
 	if (FAILED(result))
 		return false;
 
@@ -309,7 +326,7 @@ bool Pipeline::InitializeDepthTarget(ID3D11Device* device, int textureWidth, int
 	dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	dsvDesc.Texture2D.MipSlice = 0;
 
-	device->CreateDepthStencilView(depthTexture, &dsvDesc, &m_depthSV);
+	device->CreateDepthStencilView(depthTexture.Get(), &dsvDesc, &m_depthSV);
 
 	// Create shader resource view
 	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
@@ -319,10 +336,7 @@ bool Pipeline::InitializeDepthTarget(ID3D11Device* device, int textureWidth, int
 	srvDesc.Texture2D.MipLevels = 1;
 	srvDesc.Texture2D.MostDetailedMip = 0;
 
-	device->CreateShaderResourceView(depthTexture, &srvDesc, m_depthSRV.GetAddressOf());
-
-	depthTexture->Release();
-	depthTexture = nullptr;
+	device->CreateShaderResourceView(depthTexture.Get(), &srvDesc, m_depthSRV.GetAddressOf());
 
 	return true;
 }

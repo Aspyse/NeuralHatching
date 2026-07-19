@@ -40,7 +40,9 @@ public:
 	void Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, int textureWidth, int textureHeight);
 
 	void Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection, float nearPlane, float farPlane);
-	void Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shadingMode, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
+	//void Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shadingMode, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
+	void RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* scene, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
+	void CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode, D3D11_VIEWPORT viewportRect);
 
 	void CaptureDatapoint(ID3D11DeviceContext* deviceContext, std::wstring prefix = L"");
 
@@ -54,8 +56,11 @@ private:
 
 	void Unbind(ID3D11DeviceContext* deviceContext);
 
+	ID3D11ShaderResourceView* GetSRVForShadingMode(int shadingMode);
+
 private:
 	const float CLEAR_COLOR[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	int m_bufferWidth, m_bufferHeight;
 
 	ComPtr<ID3D11SamplerState> m_sampler;
 

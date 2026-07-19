@@ -1,5 +1,6 @@
 #include "Viewport.h"
 
+#include <vector>
 #include "imgui_impl_dx11.h"
 
 Viewport::Viewport() {};
@@ -13,8 +14,8 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc, float nearPlane, float farP
 	RECT rect;
 	GetClientRect(hwnd, &rect);
 
-	m_screenWidth = static_cast<UINT>(rect.right - rect.left);
-	m_screenHeight = static_cast<UINT>(rect.bottom - rect.top);
+	m_screenWidth = static_cast<int>(rect.right - rect.left);
+	m_screenHeight = static_cast<int>(rect.bottom - rect.top);
 
 	// Initialize Direct3D
 	if (!InitializeDeviceD3D(hwnd))
@@ -41,9 +42,78 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc, float nearPlane, float farP
 
 	m_pipeline = std::make_unique<Pipeline>();
 	ID3D11RenderTargetView* rtvPtr = m_renderTargetView.Get();
-	m_pipeline->Initialize(m_device.Get(), rtvPtr, m_screenWidth, m_screenHeight);
+
+	constexpr int G_BUFFER_WIDTH = 512;
+	constexpr int G_BUFFER_HEIGHT = 512;
+	m_pipeline->Initialize(m_device.Get(), rtvPtr, G_BUFFER_WIDTH, G_BUFFER_HEIGHT);
+
+	SetLayoutMode(LayoutMode::Grid2x2);
 
 	return true;
+}
+
+LayoutMode Viewport::GetLayoutMode() const
+{
+	return m_layoutMode;
+}
+
+void Viewport::SetLayoutMode(LayoutMode mode)
+{
+	m_layoutMode = mode;
+	RebuildViews();
+}
+
+int Viewport::GetViewCount() const
+{
+	return static_cast<int>(m_views.size());
+}
+
+void Viewport::RebuildViews()
+{
+	std::vector<View> previousViews = std::move(m_views);
+
+	if (m_layoutMode == LayoutMode::Single)
+	{
+		constexpr float size = 1024.0f;
+		const float originX = (static_cast<float>(m_screenWidth) - size) * 0.5f;
+		const float originY = (static_cast<float>(m_screenHeight) - size) * 0.5f;
+
+		D3D11_VIEWPORT rect = {};
+		rect.TopLeftX = originX;
+		rect.TopLeftY = originY;
+		rect.Width = size;
+		rect.Height = size;
+		rect.MinDepth = 0.0f;
+		rect.MaxDepth = 1.0f;
+
+		ShadingMode preservedMode = previousViews.empty() ? ShadingMode::Matcap : previousViews[0].shadingMode;
+		m_views = { View{ rect, preservedMode } };
+	}
+	else // LayoutMode::Grid2x2
+	{
+		constexpr float cellSize = 512.0f;
+		const float gridOriginX = (static_cast<float>(m_screenWidth) - 2.0f * cellSize) * 0.5f;
+		const float gridOriginY = (static_cast<float>(m_screenHeight) - 2.0f * cellSize) * 0.5f;
+		static const ShadingMode defaultModes[4] = { ShadingMode::Matcap, ShadingMode::Normal, ShadingMode::Depth, ShadingMode::Crossfield };
+
+		m_views.resize(4);
+		for (int cell = 0; cell < 4; cell++)
+		{
+			const int col = cell % 2;
+			const int row = cell / 2;
+
+			D3D11_VIEWPORT rect = {};
+			rect.TopLeftX = gridOriginX + col * cellSize;
+			rect.TopLeftY = gridOriginY + row * cellSize;
+			rect.Width = cellSize;
+			rect.Height = cellSize;
+			rect.MinDepth = 0.0f;
+			rect.MaxDepth = 1.0f;
+
+			m_views[cell].rect = rect;
+			m_views[cell].shadingMode = (cell < static_cast<int>(previousViews.size())) ? previousViews[cell].shadingMode : defaultModes[cell];
+		}
+	}
 }
 
 bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Scene* scene)
@@ -59,7 +129,9 @@ bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Scen
 	glm::vec3 lightNorm = glm::normalize(MATCAP_LIGHT);
 	m_pipeline->Update(m_deviceContext.Get(), viewMatrix, projectionMatrix, lightNorm, m_near, m_far);
 	//model->Render(m_deviceContext.Get());
-	m_pipeline->Render(m_deviceContext.Get(), scene, static_cast<int>(m_shadingMode), viewMatrix, projectionMatrix);
+	m_pipeline->RenderGeometryPass(m_deviceContext.Get(), scene, viewMatrix, projectionMatrix);
+	for (const View& view : m_views)
+		m_pipeline->CompositeView(m_deviceContext.Get(), static_cast<int>(view.shadingMode), view.rect);
 
 	// Unbind
 	//ID3D11RenderTargetView* nullRTV = nullptr;
@@ -86,14 +158,19 @@ ID3D11DeviceContext* Viewport::GetContext()
 	return m_deviceContext.Get();
 }
 
-ShadingMode Viewport::GetShadingMode()
+ShadingMode Viewport::GetShadingMode(int cellIndex)
 {
-	return m_shadingMode;
+	return m_views[cellIndex].shadingMode;
 }
 
-void Viewport::SetShadingMode(ShadingMode mode)
+void Viewport::SetShadingMode(int cellIndex, ShadingMode mode)
 {
-	m_shadingMode = mode;
+	m_views[cellIndex].shadingMode = mode;
+}
+
+const D3D11_VIEWPORT& Viewport::GetViewRect(int cellIndex) const
+{
+	return m_views[cellIndex].rect;
 }
 
 void Viewport::CaptureDatapoint(std::wstring prefix)
@@ -157,18 +234,15 @@ bool Viewport::InitializeDeviceD3D(HWND hWnd)
 
 bool Viewport::CreateRenderTarget()
 {
-	ID3D11Texture2D* pBackBuffer;
+	ComPtr<ID3D11Texture2D> pBackBuffer;
 
 	HRESULT result = m_swapChain->GetBuffer(0, IID_PPV_ARGS(&pBackBuffer));
 	if (FAILED(result))
 		return false;
 
-	result = m_device->CreateRenderTargetView(pBackBuffer, nullptr, &m_renderTargetView);
+	result = m_device->CreateRenderTargetView(pBackBuffer.Get(), nullptr, &m_renderTargetView);
 	if (FAILED(result))
 		return false;
-
-	pBackBuffer->Release();
-	pBackBuffer = nullptr;
 
 	return true;
 }
@@ -213,8 +287,8 @@ bool Viewport::InitializeDepth()
 	dbd.CPUAccessFlags = 0;
 	dbd.MiscFlags = 0;
 
-	ID3D11Texture2D* depthStencilBuffer;
-	result = m_device->CreateTexture2D(&dbd, nullptr, &depthStencilBuffer);
+	ComPtr<ID3D11Texture2D> depthStencilBuffer;
+	result = m_device->CreateTexture2D(&dbd, nullptr, depthStencilBuffer.GetAddressOf());
 	if (FAILED(result))
 		return false;
 
@@ -227,19 +301,16 @@ bool Viewport::InitializeDepth()
 	svd.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
 	svd.Texture2D.MipSlice = 0;
 
-	result = m_device->CreateDepthStencilView(depthStencilBuffer, &svd, &m_depthStencilView);
+	result = m_device->CreateDepthStencilView(depthStencilBuffer.Get(), &svd, &m_depthStencilView);
 	if (FAILED(result))
 		return false;
-
-	depthStencilBuffer->Release();
-	depthStencilBuffer = nullptr;
 
 	return true;
 }
 
 bool Viewport::InitializeRasterizer()
 {
-	ID3D11RasterizerState* rasterState = nullptr;
+	ComPtr<ID3D11RasterizerState> rasterState;
 	D3D11_RASTERIZER_DESC rd;
 	ZeroMemory(&rd, sizeof(rd));
 	rd.AntialiasedLineEnable = false;
@@ -252,14 +323,11 @@ bool Viewport::InitializeRasterizer()
 	rd.ScissorEnable = false;
 	rd.SlopeScaledDepthBias = 0.0f;
 
-	HRESULT result = m_device->CreateRasterizerState(&rd, &rasterState);
+	HRESULT result = m_device->CreateRasterizerState(&rd, rasterState.GetAddressOf());
 	if (FAILED(result))
 		return false;
 
-	m_deviceContext->RSSetState(rasterState);
-
-	rasterState->Release();
-	rasterState = nullptr;
+	m_deviceContext->RSSetState(rasterState.Get());
 
 	return true;
 }

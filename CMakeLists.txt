@@ -54,7 +54,7 @@ add_executable (NeuralHatching
 	"Editor.h"
 	"Editor.cpp"
 	"Model.h"
-	"Matcap.h"
+	
 	"UI.h"
 	"Viewport.h"
 	"Input.h"

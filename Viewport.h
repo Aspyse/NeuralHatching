@@ -29,6 +29,17 @@ enum class ShadingMode : int
 	Crossfield2 = 4,
 	Reliability = 5
 };
+enum class LayoutMode : int
+{
+	Single = 0,
+	Grid2x2 = 1
+};
+
+struct View
+{
+	D3D11_VIEWPORT rect{};
+	ShadingMode shadingMode = ShadingMode::Matcap;
+};
 
 class Viewport
 {
@@ -43,8 +54,15 @@ public:
 	ID3D11Device* GetDevice();
 	ID3D11DeviceContext* GetContext();
 
-	ShadingMode GetShadingMode();
-	void SetShadingMode(ShadingMode mode);
+	ShadingMode GetShadingMode(int cellIndex);
+	void SetShadingMode(int cellIndex, ShadingMode mode);
+
+	const D3D11_VIEWPORT& GetViewRect(int cellIndex) const;
+
+	LayoutMode GetLayoutMode() const;
+	void SetLayoutMode(LayoutMode mode);
+
+	int GetViewCount() const;
 
 	void CaptureDatapoint(std::wstring = L"");
 
@@ -61,12 +79,15 @@ private:
 
 	void ResetViewport(float width, float height);
 
+	void RebuildViews();
+
 private:
 	const glm::vec3 MATCAP_LIGHT = { 0.1f, -1.0f, 0.05f };
 
 	bool m_isSwapChainOccluded = false;
 
-	ShadingMode m_shadingMode = ShadingMode::Matcap;
+	std::vector<View> m_views;
+	LayoutMode m_layoutMode = LayoutMode::Grid2x2;
 
 	std::unique_ptr<Pipeline> m_pipeline;
 
@@ -83,6 +104,6 @@ private:
 
 	D3D11_VIEWPORT m_dvp = {};
 
-	UINT m_screenWidth = 0, m_screenHeight = 0;
+	int m_screenWidth = 0, m_screenHeight = 0;
 	float m_near = 0, m_far = 0;
 };
