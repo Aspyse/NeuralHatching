@@ -42,7 +42,7 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc, float nearPlane, float farP
 
 	m_pipeline = std::make_unique<Pipeline>();
 	ID3D11RenderTargetView* rtvPtr = m_renderTargetView.Get();
-
+	// g-buffer is fixed res regardless of window/layout, single mode just stretches it
 	constexpr int G_BUFFER_WIDTH = 512;
 	constexpr int G_BUFFER_HEIGHT = 512;
 	m_pipeline->Initialize(m_device.Get(), rtvPtr, G_BUFFER_WIDTH, G_BUFFER_HEIGHT);
@@ -70,6 +70,7 @@ int Viewport::GetViewCount() const
 
 void Viewport::RebuildViews()
 {
+	// read by Render() and UI
 	std::vector<View> previousViews = std::move(m_views);
 
 	if (m_layoutMode == LayoutMode::Single)
