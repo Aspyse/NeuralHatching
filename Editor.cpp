@@ -6,7 +6,8 @@
 bool Editor::Initialize()
 {
 	// Window init
-	const int SCREEN_WIDTH = 1920,
+	// fits a 1024x1024 (2x2 of 512) grid plus side panels
+	const int SCREEN_WIDTH = 1536,
 		SCREEN_HEIGHT = 1024;
 	const float NEAR_PLANE = 0.1f,
 		FAR_PLANE = 6.0f;

@@ -158,8 +158,7 @@ bool UI::Frame()
 	const ImVec2 displaySize = m_io->DisplaySize;
 	const int viewCount = m_viewport->GetViewCount();
 
-	// Grid geometry (view count, size, position) lives in one place —
-	// Viewport::RebuildViews — this just reads it back as a bounding box.
+	// grid geometry lives in Viewport::RebuildViews, just read it back here
 	float minX = m_viewport->GetViewRect(0).TopLeftX, minY = m_viewport->GetViewRect(0).TopLeftY;
 	float maxX = minX, maxY = minY;
 	for (int i = 0; i < viewCount; i++)
@@ -177,8 +176,7 @@ bool UI::Frame()
 	const float sceneWidth = viewportX;
 	const float inspectorWidth = displaySize.x - (viewportX + viewportSize);
 
-	// Overlay the framerate and each cell's assigned shading mode directly
-	// onto the grid, on top of the rendered scene, rather than inside a panel.
+	// overlay fps + each view's shading mode on top of the render
 	{
 
 		char fpsText[64];
@@ -196,8 +194,7 @@ bool UI::Frame()
 			viewportOverlay->AddText(ImVec2(cellRect.TopLeftX + 8.0f, cellRect.TopLeftY + 8.0f), IM_COL32(180, 180, 180, 255), modeName);
 		}
 
-		// Thin separators so the four cells read as a distinct grid.
-		// Only meaningful in Grid2x2 mode — a single view has no seam.
+		// grid separators, only in Grid2x2 mode
 		if (m_viewport->GetLayoutMode() == LayoutMode::Grid2x2)
 		{
 			const float midX = viewportX + viewportSize * 0.5f;
@@ -223,9 +220,7 @@ bool UI::Frame()
 			// Check if this specific map item is the currently selected one
 			const bool is_selected = (selected_key == key);
 
-			// Display the model's filename; the numeric key is tacked on
-			// after "##" as a hidden, guaranteed-unique widget ID so two
-			// models with the same filename don't collide.
+			// key appended as ##id so same-name models don't collide
 			const std::wstring& wname = value->GetName();
 			const std::string label = std::string(wname.begin(), wname.end()) + "##" + std::to_string(key);
 
@@ -262,8 +257,7 @@ bool UI::Frame()
 			ShadingMode mode = m_viewport->GetShadingMode(cell);
 			int currentIndex = static_cast<int>(mode);
 
-			// A single view has no "position", so give it a plain label
-			// instead of a directional one.
+			// single view has no position, use a plain label
 			const char* label = (viewCount == 1) ? "Shading Mode" : cellLabels[cell];
 
 			ImGui::PushID(cell);
