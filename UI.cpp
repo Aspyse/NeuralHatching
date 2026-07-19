@@ -1,7 +1,12 @@
 #include "UI.h"
 #include <algorithm>
+#include <filesystem>
+#include <shobjidl.h>
+#include <wrl/client.h>
 #include "imgui_impl_win32.h"
 #include "imgui_impl_dx11.h"
+
+#pragma comment(lib, "ole32.lib")
 
 bool UI::Initialize(HWND hWnd)
 {
@@ -36,6 +41,56 @@ void UI::Shutdown()
 	ImGui::DestroyContext();
 }
 
+namespace
+{
+	std::string OpenNativeModelFileDialog(const COMDLG_FILTERSPEC* filters, UINT filterCount)
+	{
+		std::string result;
+
+		HRESULT hr = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+		const bool comInitializedHere = SUCCEEDED(hr);
+
+		Microsoft::WRL::ComPtr<IFileOpenDialog> dialog;
+		if (SUCCEEDED(CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&dialog))))
+		{
+			dialog->SetFileTypes(filterCount, filters);
+			dialog->SetFileTypeIndex(1);
+
+
+			wchar_t exePath[MAX_PATH]{};
+			GetModuleFileNameW(nullptr, exePath, MAX_PATH);
+			const std::filesystem::path exeDir = std::filesystem::path(exePath).parent_path();
+
+			Microsoft::WRL::ComPtr<IShellItem> defaultFolder;
+			if (SUCCEEDED(SHCreateItemFromParsingName(exeDir.c_str(), nullptr, IID_PPV_ARGS(&defaultFolder))))
+				dialog->SetFolder(defaultFolder.Get());
+
+			if (SUCCEEDED(dialog->Show(nullptr)))
+			{
+				Microsoft::WRL::ComPtr<IShellItem> item;
+				if (SUCCEEDED(dialog->GetResult(&item)))
+				{
+					PWSTR path = nullptr;
+					if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)))
+					{
+						result = std::filesystem::path(path).filename().string();
+						CoTaskMemFree(path);
+					}
+				}
+			}
+		}
+
+		if (comInitializedHere)
+			CoUninitialize();
+
+		return result;
+	}
+
+	const COMDLG_FILTERSPEC PLY_FILTERS[] = { { L"PLY Files", L"*.ply" }, { L"All Files", L"*.*" } };
+	const COMDLG_FILTERSPEC OBJ_FILTERS[] = { { L"OBJ Files", L"*.obj" }, { L"All Files", L"*.*" } };
+	const COMDLG_FILTERSPEC GLB_FILTERS[] = { { L"GLB Files", L"*.glb" }, { L"All Files", L"*.*" } };
+}
+
 bool UI::Frame()
 {
 	// Start the ImGui frame
@@ -44,6 +99,61 @@ bool UI::Frame()
 	ImGui::NewFrame();
 
 	static uint64_t selected_key = 0;
+
+	// Top menu bar
+	float menuBarHeight = 0.0f;
+	if (ImGui::BeginMainMenuBar())
+	{
+		if (ImGui::BeginMenu("File"))
+		{
+			if (ImGui::BeginMenu("Load Model"))
+			{
+				auto loadPicked = [this](const COMDLG_FILTERSPEC* filters, UINT filterCount)
+					{
+						std::string file = OpenNativeModelFileDialog(filters, filterCount);
+						if (!file.empty())
+						{
+							strncpy_s(m_modelFile, file.c_str(), _TRUNCATE);
+							m_scene->LoadModel(m_viewport->GetDevice(), m_modelFile);
+						}
+					};
+
+				if (ImGui::MenuItem("Load PLY..."))
+					loadPicked(PLY_FILTERS, static_cast<UINT>(std::size(PLY_FILTERS)));
+
+				if (ImGui::MenuItem("Load OBJ..."))
+					loadPicked(OBJ_FILTERS, static_cast<UINT>(std::size(OBJ_FILTERS)));
+
+				if (ImGui::MenuItem("Load GLB..."))
+					loadPicked(GLB_FILTERS, static_cast<UINT>(std::size(GLB_FILTERS)));
+
+				ImGui::EndMenu();
+			}
+
+			ImGui::EndMenu();
+		}
+
+		if (ImGui::BeginMenu("View"))
+		{
+			if (ImGui::BeginMenu("Layout"))
+			{
+				const LayoutMode layoutMode = m_viewport->GetLayoutMode();
+
+				if (ImGui::MenuItem("Single", nullptr, layoutMode == LayoutMode::Single))
+					m_viewport->SetLayoutMode(LayoutMode::Single);
+
+				if (ImGui::MenuItem("2x2 Grid", nullptr, layoutMode == LayoutMode::Grid2x2))
+					m_viewport->SetLayoutMode(LayoutMode::Grid2x2);
+
+				ImGui::EndMenu();
+			}
+
+			ImGui::EndMenu();
+		}
+
+		menuBarHeight = ImGui::GetFrameHeight();
+		ImGui::EndMainMenuBar();
+	}
 
 	const ImVec2 displaySize = m_io->DisplaySize;
 	const int viewCount = m_viewport->GetViewCount();
@@ -70,7 +180,7 @@ bool UI::Frame()
 	// Overlay the framerate and each cell's assigned shading mode directly
 	// onto the grid, on top of the rendered scene, rather than inside a panel.
 	{
-		
+
 		char fpsText[64];
 		snprintf(fpsText, sizeof(fpsText), "%.3f ms/frame (%.1f FPS)", 1000.0f / m_io->Framerate, m_io->Framerate);
 
@@ -101,8 +211,8 @@ bool UI::Frame()
 
 	// Scene panel (left)
 	{
-		ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
-		ImGui::SetNextWindowSize(ImVec2(sceneWidth, displaySize.y));
+		ImGui::SetNextWindowPos(ImVec2(0.0f, menuBarHeight));
+		ImGui::SetNextWindowSize(ImVec2(sceneWidth, displaySize.y - menuBarHeight));
 		ImGui::SetNextWindowBgAlpha(1.0f);
 
 		ImGui::Begin("Scene", nullptr, panelFlags);
@@ -113,8 +223,13 @@ bool UI::Frame()
 			// Check if this specific map item is the currently selected one
 			const bool is_selected = (selected_key == key);
 
-			// Draw the selectable item using the map's value (the string)
-			if (ImGui::Selectable(std::to_string(key).c_str(), is_selected))
+			// Display the model's filename; the numeric key is tacked on
+			// after "##" as a hidden, guaranteed-unique widget ID so two
+			// models with the same filename don't collide.
+			const std::wstring& wname = value->GetName();
+			const std::string label = std::string(wname.begin(), wname.end()) + "##" + std::to_string(key);
+
+			if (ImGui::Selectable(label.c_str(), is_selected))
 			{
 				selected_key = key; // Update the selected key if clicked
 
@@ -131,29 +246,14 @@ bool UI::Frame()
 		ImGui::End();
 	}
 
+
 	// Inspector panel (right)
 	{
-		ImGui::SetNextWindowPos(ImVec2(viewportX + viewportSize, 0.0f));
-		ImGui::SetNextWindowSize(ImVec2(inspectorWidth, displaySize.y));
+		ImGui::SetNextWindowPos(ImVec2(viewportX + viewportSize, menuBarHeight));
+		ImGui::SetNextWindowSize(ImVec2(inspectorWidth, displaySize.y - menuBarHeight));
 		ImGui::SetNextWindowBgAlpha(1.0f);
 
 		ImGui::Begin("Inspector", nullptr, panelFlags);
-
-		if (ImGui::InputText("Model Path", m_modelFile, sizeof(m_modelFile), ImGuiInputTextFlags_EnterReturnsTrue) ||
-			ImGui::Button("Load Model"))
-		{
-			m_scene->LoadModel(m_viewport->GetDevice(), m_modelFile);
-		}
-
-		ImGui::Separator();
-
-		LayoutMode layoutMode = m_viewport->GetLayoutMode();
-		int layoutIndex = (layoutMode == LayoutMode::Grid2x2) ? 1 : 0;
-		static const char* LAYOUT_MODE_NAMES[] = { "Single", "2x2 Grid" };
-		if (ImGui::Combo("Layout", &layoutIndex, LAYOUT_MODE_NAMES, IM_ARRAYSIZE(LAYOUT_MODE_NAMES)))
-			m_viewport->SetLayoutMode(layoutIndex == 1 ? LayoutMode::Grid2x2 : LayoutMode::Single);
-
-		ImGui::Separator();
 
 		static const char* cellLabels[4] = { "Top Left", "Top Right", "Bottom Left", "Bottom Right" };
 		const int viewCount = m_viewport->GetViewCount();
@@ -170,16 +270,6 @@ bool UI::Frame()
 			if (ImGui::Combo(label, &currentIndex, SHADING_MODE_NAMES, N_SHADING_MODES))
 				m_viewport->SetShadingMode(cell, static_cast<ShadingMode>(currentIndex));
 			ImGui::PopID();
-		}
-
-		if (ImGui::Button("Capture Datapoint"))
-		{
-			m_viewport->CaptureDatapoint();
-		}
-
-		if (ImGui::Button("Autocapture for model"))
-		{
-			m_synthesizeCallback();
 		}
 
 		ImGui::Separator();
@@ -208,6 +298,18 @@ bool UI::Frame()
 				m_scene->DeleteModel(it->first);
 				selected_key = 0;
 			}
+		}
+
+		ImGui::Separator();
+
+		if (ImGui::Button("Capture Datapoint"))
+		{
+			m_viewport->CaptureDatapoint();
+		}
+
+		if (ImGui::Button("Autocapture for model"))
+		{
+			m_synthesizeCallback();
 		}
 
 		ImGui::End();
