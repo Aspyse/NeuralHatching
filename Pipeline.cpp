@@ -66,9 +66,7 @@ void Pipeline::SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 world
 
 void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* scene, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
 {
-	// Runs exactly once per frame, regardless of how many views composite
-	// from it afterward. This method has no knowledge of grids, windows,
-	// or view counts — it only knows how to fill the g-buffer.
+	// runs once per frame regardless of how many views composite from it
 	D3D11_VIEWPORT fullViewport = {};
 	fullViewport.TopLeftX = 0.0f;
 	fullViewport.TopLeftY = 0.0f;
@@ -143,10 +141,7 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 
 void Pipeline::CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode, D3D11_VIEWPORT viewportRect)
 {
-	// Composites ONE g-buffer channel into ONE rect of the output target.
-	// No knowledge of how many other views exist or how they're arranged —
-	// that's the caller's (Viewport's) job. Call this once per view, after
-	// RenderGeometryPass has run once for the frame.
+	// composites one channel into one rect, call once per view
 	ID3D11RenderTargetView* outRTVPtr = m_outRTV.Get();
 	deviceContext->OMSetRenderTargets(1, &outRTVPtr, nullptr);
 	deviceContext->RSSetViewports(1, &viewportRect);
