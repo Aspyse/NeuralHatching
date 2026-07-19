@@ -6,11 +6,13 @@
 bool Editor::Initialize()
 {
 	// Window init
-	// fits a 1024x1024 (2x2 of 512) grid plus side panels
+	// fits a 1024x1024 (2x2 of 512) grid plus side panels and menu bar
 	const int SCREEN_WIDTH = 1920,
-		SCREEN_HEIGHT = 1024;
+		SCREEN_HEIGHT = 1064;
 	const float NEAR_PLANE = 0.1f,
 		FAR_PLANE = 6.0f;
+	const int GBUFFER_WIDTH = 512,
+		GBUFFER_HEIGHT = 512;
 	WNDCLASSEXW m_wc = { sizeof(m_wc), CS_CLASSDC, WndProc, 0L, 0L, GetModuleHandle(nullptr), nullptr, nullptr, nullptr, nullptr, L"Neural Hatching", nullptr };
 	::RegisterClassExW(&m_wc);
 
@@ -43,12 +45,12 @@ bool Editor::Initialize()
 	SetWindowLongPtr(m_hwnd, GWLP_USERDATA, (LONG_PTR)m_input.get());
 
 	m_camera = std::make_unique<Camera>();
-	m_camera->SetAspect(80, SCREEN_WIDTH, SCREEN_HEIGHT);
+	m_camera->SetAspect(80, GBUFFER_WIDTH, GBUFFER_HEIGHT);
 	m_camera->SetPosition(0.0f, 0.0f, -1.6f);
 	m_camera->SetPlanes(NEAR_PLANE, FAR_PLANE);
 	m_camera->Initialize();
 	
-	m_viewport->Initialize(m_hwnd, m_wc, NEAR_PLANE, FAR_PLANE);
+	m_viewport->Initialize(m_hwnd, m_wc, NEAR_PLANE, FAR_PLANE, GBUFFER_WIDTH, GBUFFER_HEIGHT);
 
 	//m_model = std::make_unique<Model>();
 	//m_model->Load(m_viewport->GetDevice(), "bun_zipper.ply");

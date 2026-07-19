@@ -47,7 +47,7 @@ public:
 	Viewport();
 	~Viewport();
 
-	bool Initialize(HWND hWnd, WNDCLASSEXW, float nearPlane, float farPlane);
+	bool Initialize(HWND hWnd, WNDCLASSEXW, float nearPlane, float farPlane, int gBufferWidth, int gBufferHeight);
 	void Shutdown();
 	bool Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Scene* scene);
 
@@ -63,6 +63,8 @@ public:
 	void SetLayoutMode(LayoutMode mode);
 
 	int GetViewCount() const;
+
+	void SetTopInset(float inset);
 
 	void CaptureDatapoint(std::wstring = L"");
 
@@ -105,5 +107,8 @@ private:
 	D3D11_VIEWPORT m_dvp = {};
 
 	int m_screenWidth = 0, m_screenHeight = 0;
+	int m_gBufferWidth = 0, m_gBufferHeight = 0;
 	float m_near = 0, m_far = 0;
+
+	float m_topInset = 0.0f;
 };

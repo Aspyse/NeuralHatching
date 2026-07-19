@@ -6,10 +6,12 @@
 Viewport::Viewport() {};
 Viewport::~Viewport() {};
 
-bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc, float nearPlane, float farPlane)
+bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc, float nearPlane, float farPlane, int gBufferWidth, int gBufferHeight)
 {
 	m_near = nearPlane;
 	m_far = farPlane;
+	m_gBufferWidth = gBufferWidth;
+	m_gBufferHeight = gBufferHeight;
 	
 	RECT rect;
 	GetClientRect(hwnd, &rect);
@@ -43,9 +45,7 @@ bool Viewport::Initialize(HWND hwnd, WNDCLASSEXW wc, float nearPlane, float farP
 	m_pipeline = std::make_unique<Pipeline>();
 	ID3D11RenderTargetView* rtvPtr = m_renderTargetView.Get();
 	// g-buffer is fixed res regardless of window/layout, single mode just stretches it
-	constexpr int G_BUFFER_WIDTH = 512;
-	constexpr int G_BUFFER_HEIGHT = 512;
-	m_pipeline->Initialize(m_device.Get(), rtvPtr, G_BUFFER_WIDTH, G_BUFFER_HEIGHT);
+	m_pipeline->Initialize(m_device.Get(), rtvPtr, m_gBufferWidth, m_gBufferHeight);
 
 	SetLayoutMode(LayoutMode::Grid2x2);
 
@@ -68,16 +68,26 @@ int Viewport::GetViewCount() const
 	return static_cast<int>(m_views.size());
 }
 
+void Viewport::SetTopInset(float inset)
+{
+	if (inset == m_topInset)
+		return;
+
+	m_topInset = inset;
+	RebuildViews();
+}
+
 void Viewport::RebuildViews()
 {
 	// read by Render() and UI
 	std::vector<View> previousViews = std::move(m_views);
+	const float availableHeight = static_cast<float>(m_screenHeight) - m_topInset;
 
 	if (m_layoutMode == LayoutMode::Single)
 	{
-		constexpr float size = 1024.0f;
+		const float size = 1024.0f;
 		const float originX = (static_cast<float>(m_screenWidth) - size) * 0.5f;
-		const float originY = (static_cast<float>(m_screenHeight) - size) * 0.5f;
+		const float originY = m_topInset + (availableHeight - size) * 0.5f;
 
 		D3D11_VIEWPORT rect = {};
 		rect.TopLeftX = originX;
@@ -92,9 +102,9 @@ void Viewport::RebuildViews()
 	}
 	else // LayoutMode::Grid2x2
 	{
-		constexpr float cellSize = 512.0f;
+		const float cellSize = 512.0f;
 		const float gridOriginX = (static_cast<float>(m_screenWidth) - 2.0f * cellSize) * 0.5f;
-		const float gridOriginY = (static_cast<float>(m_screenHeight) - 2.0f * cellSize) * 0.5f;
+		const float gridOriginY = m_topInset + (availableHeight - 2.0f * cellSize) * 0.5f;
 		static const ShadingMode defaultModes[4] = { ShadingMode::Matcap, ShadingMode::Normal, ShadingMode::Depth, ShadingMode::Crossfield };
 
 		m_views.resize(4);

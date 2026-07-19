@@ -155,6 +155,8 @@ bool UI::Frame()
 		ImGui::EndMainMenuBar();
 	}
 
+	m_viewport->SetTopInset(menuBarHeight);
+
 	const ImVec2 displaySize = m_io->DisplaySize;
 	const int viewCount = m_viewport->GetViewCount();
 
