@@ -42,9 +42,70 @@ bool UI::Frame()
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
+	static uint64_t selected_key = 0;
+
+	const float viewportSize = 512.0f;
+	const ImVec2 displaySize = m_io->DisplaySize;
+
+	// Keep the render viewport a fixed 512x512 square, centered on screen.
+	// The scene/inspector panels fill whatever space is left on either side.
+	const float viewportX = (displaySize.x - viewportSize) * 0.5f;
+	const float viewportY = (displaySize.y - viewportSize) * 0.5f;
+
+	const float sceneWidth = viewportX;
+	const float inspectorWidth = displaySize.x - (viewportX + viewportSize);
+
+	// Overlay the framerate directly onto the viewport's top-left corner,
+	// on top of the rendered scene, rather than inside a panel.
 	{
-		ImGui::Begin("Editor Controls");
-		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / m_io->Framerate, m_io->Framerate);
+		char fpsText[64];
+		snprintf(fpsText, sizeof(fpsText), "%.3f ms/frame (%.1f FPS)", 1000.0f / m_io->Framerate, m_io->Framerate);
+
+		ImDrawList* viewportOverlay = ImGui::GetForegroundDrawList();
+		viewportOverlay->AddText(ImVec2(viewportX + 8.0f, viewportY + 8.0f), IM_COL32(255, 255, 255, 255), fpsText);
+	}
+
+	const ImGuiWindowFlags panelFlags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse;
+
+	// Scene panel (left)
+	{
+		ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f));
+		ImGui::SetNextWindowSize(ImVec2(sceneWidth, displaySize.y));
+		ImGui::SetNextWindowBgAlpha(1.0f);
+
+		ImGui::Begin("Scene", nullptr, panelFlags);
+
+		// Iterate through the unordered_map using a range-based for loop
+		for (auto& [key, value] : m_scene->GetModels())
+		{
+			// Check if this specific map item is the currently selected one
+			const bool is_selected = (selected_key == key);
+
+			// Draw the selectable item using the map's value (the string)
+			if (ImGui::Selectable(std::to_string(key).c_str(), is_selected))
+			{
+				selected_key = key; // Update the selected key if clicked
+
+				// Trigger your engine update here if needed:
+				// viewport->SetShadingMode(static_cast<ShadingMode>(selected_key));
+			}
+
+			if (is_selected)
+			{
+				ImGui::SetItemDefaultFocus();
+			}
+		}
+
+		ImGui::End();
+	}
+
+	// Inspector panel (right)
+	{
+		ImGui::SetNextWindowPos(ImVec2(viewportX + viewportSize, 0.0f));
+		ImGui::SetNextWindowSize(ImVec2(inspectorWidth, displaySize.y));
+		ImGui::SetNextWindowBgAlpha(1.0f);
+
+		ImGui::Begin("Inspector", nullptr, panelFlags);
 
 		if (ImGui::InputText("Model Path", m_modelFile, sizeof(m_modelFile), ImGuiInputTextFlags_EnterReturnsTrue) ||
 			ImGui::Button("Load Model"))
@@ -72,40 +133,7 @@ bool UI::Frame()
 
 		ImGui::Separator();
 
-		static uint64_t selected_key = 0;
-
-		std::string preview_value;
 		auto it = m_scene->GetModels().find(selected_key);
-		if (it != m_scene->GetModels().end())
-		{
-			preview_value = std::to_string(it->first); // Get the string associated with the selected key
-		}
-
-		if (ImGui::BeginCombo("Model", preview_value.c_str()))
-		{
-			// Iterate through the unordered_map using a range-based for loop
-			for (auto& [key, value] : m_scene->GetModels())
-			{
-				// Check if this specific map item is the currently selected one
-				const bool is_selected = (selected_key == key);
-
-				// Draw the selectable item using the map's value (the string)
-				if (ImGui::Selectable(std::to_string(key).c_str(), is_selected))
-				{
-					selected_key = key; // Update the selected key if clicked
-
-					// Trigger your engine update here if needed:
-					// viewport->SetShadingMode(static_cast<ShadingMode>(selected_key));
-				}
-
-				if (is_selected)
-				{
-					ImGui::SetItemDefaultFocus();
-				}
-			}
-			ImGui::EndCombo();
-		}
-
 		if (it != m_scene->GetModels().end())
 		{
 			glm::vec3 currentPos = it->second->GetPosition();
@@ -130,7 +158,7 @@ bool UI::Frame()
 				selected_key = 0;
 			}
 		}
-		
+
 		ImGui::End();
 	}
 

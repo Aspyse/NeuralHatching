@@ -6,7 +6,7 @@
 bool Editor::Initialize()
 {
 	// Window init
-	const int SCREEN_WIDTH = 512,
+	const int SCREEN_WIDTH = 1024,
 		SCREEN_HEIGHT = 512;
 	const float NEAR_PLANE = 0.1f,
 		FAR_PLANE = 6.0f;
