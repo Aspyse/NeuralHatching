@@ -43,7 +43,7 @@ private:
 		glm::vec3 axisColorX;
 		float majorLineEvery;
 
-		glm::vec3 axisColorY;
+		glm::vec3 axisColorZ;
 		float fadeDistance;
 
 		glm::vec3 lineColor;

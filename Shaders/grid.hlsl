@@ -13,7 +13,7 @@ cbuffer GridBuffer : register(b0)
     float3 axisColorX; // drawn where worldPos.y == 0
     float majorLineEvery;
 
-    float3 axisColorY; // drawn where worldPos.x == 0
+    float3 axisColorZ; // drawn where worldPos.x == 0
     float fadeDistance;
 
     float3 lineColor;
@@ -40,14 +40,14 @@ float3 UnprojectToWorld(float2 uv, float ndcZ)
 float4 PostprocessShader(PixelInputType input) : SV_TARGET
 {
     // Build a world-space ray through this pixel and intersect it with the
-    // world Z = 0 ground plane. (Swap .z for .y below if your scene is Y-up.)
+    // world Y = 0 ground plane.
     float3 farWS = UnprojectToWorld(input.uv, 1.0);
     float3 rayDir = normalize(farWS - cameraPosWS);
 
-    if (abs(rayDir.z) < 1e-5)
+    if (abs(rayDir.y) < 1e-5)
         discard; // ray runs parallel to the ground plane
 
-    float t = -cameraPosWS.z / rayDir.z;
+    float t = -cameraPosWS.y / rayDir.y;
     if (t < 0)
         discard; // ground plane is behind the camera
 
@@ -61,7 +61,7 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
         discard;
 
     // Anti-aliased grid lines (Ben Golus' "Best Darn Grid Shader" approach)
-    float2 coord = worldPos.xy / cellSize;
+    float2 coord = worldPos.xz / cellSize;
     float2 deriv = fwidth(coord);
     float2 gridLines = abs(frac(coord - 0.5) - 0.5) / max(deriv, 1e-6);
     float minorLine = 1.0 - saturate(min(gridLines.x, gridLines.y));
@@ -74,14 +74,14 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
     float3 color = lerp(lineColor * 0.5, lineColor, majorLine);
     float alpha = max(minorLine, majorLine);
 
-    // Highlight the X and Y axes
-    float2 axisDeriv = max(fwidth(worldPos.xy), 1e-6);
-    float xAxis = 1.0 - saturate(abs(worldPos.y) / axisDeriv.y - 1.0);
-    float yAxis = 1.0 - saturate(abs(worldPos.x) / axisDeriv.x - 1.0);
+    // Highlight the X and Z axes
+    float2 axisDeriv = max(fwidth(worldPos.xz), 1e-6);
+    float xAxis = 1.0 - saturate(abs(worldPos.z) / axisDeriv.y - 1.0); // X axis: line where Z ~ 0
+    float zAxis = 1.0 - saturate(abs(worldPos.x) / axisDeriv.x - 1.0); // Z axis: line where X ~ 0
 
     color = lerp(color, axisColorX, xAxis);
-    color = lerp(color, axisColorY, yAxis);
-    alpha = max(alpha, max(xAxis, yAxis));
+    color = lerp(color, axisColorZ, zAxis);
+    alpha = max(alpha, max(xAxis, zAxis));
 
     // Fade out towards the far plane so the grid doesn't hard-cut
     float dist = length(worldPos - cameraPosWS);
@@ -92,4 +92,4 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
         discard;
 
     return float4(color, alpha);
-};
+}

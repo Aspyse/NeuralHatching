@@ -64,7 +64,7 @@ void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix
 	gridBuffer.cellSize = 0.1f;
 	gridBuffer.axisColorX = glm::vec3(0.85f, 0.2f, 0.2f);
 	gridBuffer.majorLineEvery = 10.0f;
-	gridBuffer.axisColorY = glm::vec3(0.2f, 0.7f, 0.2f);
+	gridBuffer.axisColorZ = glm::vec3(0.2f, 0.7f, 0.2f);
 	gridBuffer.fadeDistance = farPlane;
 	gridBuffer.lineColor = glm::vec3(0.4f, 0.4f, 0.4f);
 	gridBuffer.pad = 0.0f;
