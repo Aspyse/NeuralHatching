@@ -32,6 +32,23 @@ private:
 		glm::vec3 lightDirectionVS;
 		float pad;
 	};
+	struct GridBuffer
+	{
+		glm::mat4x4 invViewProj;
+		glm::mat4x4 viewProj;
+
+		glm::vec3 cameraPosWS;
+		float cellSize;
+
+		glm::vec3 axisColorX;
+		float majorLineEvery;
+
+		glm::vec3 axisColorY;
+		float fadeDistance;
+
+		glm::vec3 lineColor;
+		float pad;
+	};
 
 public:
 	Pipeline() {};
@@ -42,7 +59,7 @@ public:
 	void Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, glm::vec3 lightDirection, float nearPlane, float farPlane);
 	//void Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shadingMode, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
 	void RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* scene, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
-	void CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode, D3D11_VIEWPORT viewportRect);
+	void CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode, D3D11_VIEWPORT viewportRect, bool drawGrid = true);
 
 	void CaptureDatapoint(ID3D11DeviceContext* deviceContext, std::wstring prefix = L"");
 
@@ -52,7 +69,11 @@ private:
 
 	bool InitializeDepthTarget(ID3D11Device* device, int textureWidth, int textureHeight);
 
+	bool InitializeBlendState(ID3D11Device* device);
+
 	void SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 worldMatrix, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
+
+	void RenderGrid(ID3D11DeviceContext* deviceContext, D3D11_VIEWPORT viewportRect);
 
 	void Unbind(ID3D11DeviceContext* deviceContext);
 
@@ -63,11 +84,12 @@ private:
 	int m_bufferWidth, m_bufferHeight;
 
 	ComPtr<ID3D11SamplerState> m_sampler;
+	ComPtr<ID3D11BlendState> m_alphaBlendState;
 
 	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV;
 	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV;
 	ComPtr<ID3D11DepthStencilView> m_depthSV;
 
 	std::unique_ptr<GeometryNode> m_geometryNode;
-	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode;
+	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode;
 };

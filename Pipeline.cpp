@@ -27,12 +27,17 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	m_outNode = std::make_unique<Node>();
 	m_outNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/fullscreen.hlsl", "BaseVertexShader", "PostprocessShader");
 
+	m_gridNode = std::make_unique<Node>();
+	m_gridNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/grid.hlsl", "BaseVertexShader", "PostprocessShader");
+
 	m_geometryNode->AddVSConstantBuffer<MatrixBuffer>(device);
 	m_geometryNode->AddPSConstantBuffer<MatrixBuffer>(device);
 	m_depthPassthruNode->AddPSConstantBuffer<DepthBuffer>(device);
 	m_matcapNode->AddPSConstantBuffer<MatcapBuffer>(device);
+	m_gridNode->AddPSConstantBuffer<GridBuffer>(device);
 
 	InitializeDepthTarget(device, textureWidth, textureHeight);
+	InitializeBlendState(device);
 }
 
 // sidenote: probably the most elegant method i've tried so far
@@ -43,13 +48,30 @@ void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix
 	depthBuffer.nearPlane = nearPlane;
 	depthBuffer.farPlane = farPlane;
 
+	glm::mat4x4 invView = glm::inverse(viewMatrix);
+
 	MatcapBuffer matcapBuffer;
 	matcapBuffer.invProj = glm::transpose(glm::inverse(projectionMatrix));
-	matcapBuffer.invView = glm::transpose(glm::inverse(viewMatrix));
+	matcapBuffer.invView = glm::transpose(invView);
 	matcapBuffer.lightDirectionVS = glm::mat3(viewMatrix) * glm::normalize(lightDirection); // TODO: test correctness
+
+	glm::mat4x4 viewProjection = projectionMatrix * viewMatrix;
+
+	GridBuffer gridBuffer;
+	gridBuffer.invViewProj = glm::transpose(glm::inverse(viewProjection));
+	gridBuffer.viewProj = glm::transpose(viewProjection);
+	gridBuffer.cameraPosWS = glm::vec3(invView[3]);
+	gridBuffer.cellSize = 0.1f;
+	gridBuffer.axisColorX = glm::vec3(0.85f, 0.2f, 0.2f);
+	gridBuffer.majorLineEvery = 10.0f;
+	gridBuffer.axisColorY = glm::vec3(0.2f, 0.7f, 0.2f);
+	gridBuffer.fadeDistance = farPlane;
+	gridBuffer.lineColor = glm::vec3(0.4f, 0.4f, 0.4f);
+	gridBuffer.pad = 0.0f;
 
 	m_depthPassthruNode->UpdatePSConstantBuffer<DepthBuffer>(deviceContext, depthBuffer, 0);
 	m_matcapNode->UpdatePSConstantBuffer<MatcapBuffer>(deviceContext, matcapBuffer, 0);
+	m_gridNode->UpdatePSConstantBuffer<GridBuffer>(deviceContext, gridBuffer, 0);
 }
 
 void Pipeline::SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 worldMatrix, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
@@ -139,7 +161,7 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 	Unbind(deviceContext);
 }
 
-void Pipeline::CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode, D3D11_VIEWPORT viewportRect)
+void Pipeline::CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode, D3D11_VIEWPORT viewportRect, bool drawGrid)
 {
 	// composites one channel into one rect, call once per view
 	ID3D11RenderTargetView* outRTVPtr = m_outRTV.Get();
@@ -151,6 +173,30 @@ void Pipeline::CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode
 
 	m_outNode->Render(deviceContext);
 	deviceContext->Draw(3, 0);
+
+	Unbind(deviceContext);
+
+	if (drawGrid)
+		RenderGrid(deviceContext, viewportRect);
+}
+
+void Pipeline::RenderGrid(ID3D11DeviceContext* deviceContext, D3D11_VIEWPORT viewportRect)
+{
+	// overlays the ground grid on top of the just-composited view, alpha blended and depth-occluded by the model
+	ID3D11RenderTargetView* outRTVPtr = m_outRTV.Get();
+	deviceContext->OMSetRenderTargets(1, &outRTVPtr, nullptr);
+	deviceContext->RSSetViewports(1, &viewportRect);
+
+	ID3D11ShaderResourceView* depthSRVPtr = m_depthSRV.Get();
+	deviceContext->PSSetShaderResources(0, 1, &depthSRVPtr);
+
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	deviceContext->OMSetBlendState(m_alphaBlendState.Get(), blendFactor, 0xffffffff);
+
+	m_gridNode->Render(deviceContext);
+	deviceContext->Draw(3, 0);
+
+	deviceContext->OMSetBlendState(nullptr, blendFactor, 0xffffffff);
 
 	Unbind(deviceContext);
 }
@@ -286,6 +332,26 @@ bool Pipeline::CreateRenderTarget(ID3D11Device* device, ID3D11RenderTargetView**
 
 	// SRV
 	result = device->CreateShaderResourceView(texture.Get(), nullptr, srv);
+	if (FAILED(result))
+		return false;
+
+	return true;
+}
+
+bool Pipeline::InitializeBlendState(ID3D11Device* device)
+{
+	D3D11_BLEND_DESC bd;
+	ZeroMemory(&bd, sizeof(bd));
+	bd.RenderTarget[0].BlendEnable = TRUE;
+	bd.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+	bd.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+	bd.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+	bd.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+	bd.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+	bd.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+	bd.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+	HRESULT result = device->CreateBlendState(&bd, m_alphaBlendState.GetAddressOf());
 	if (FAILED(result))
 		return false;
 
