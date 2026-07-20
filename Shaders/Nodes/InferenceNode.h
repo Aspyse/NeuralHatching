@@ -46,4 +46,12 @@ private:
 
 	ComPtr<ID3D11Texture2D> m_outputTexture;
 	ComPtr<ID3D11ShaderResourceView> m_outputSRV;
+
+	// rolling perf profile, logged every kProfileWindowFrames frames then reset (see RunInferenceOnStaging)
+	static const int kProfileWindowFrames = 120;
+	int m_profileFrameCount = 0;
+	double m_mapStallMs = 0.0;   // Map() blocking on the GPU copy from last frame
+	double m_packMs = 0.0;       // CPU loop building the input tensor
+	double m_inferenceMs = 0.0;  // Ort::Session::Run only
+	double m_writebackMs = 0.0;  // packing prediction + mask into the output texture
 };

@@ -230,7 +230,8 @@ bool Viewport::InitializeDeviceD3D(HWND hWnd)
 
 	//sd.Flags = 0;
 
-	UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
+	//UINT createDeviceFlags = D3D11_CREATE_DEVICE_DEBUG;
+	UINT createDeviceFlags = 0;
 
 	D3D_FEATURE_LEVEL featureLevel;
 	const D3D_FEATURE_LEVEL featureLevelArray[2] = { D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0, };

@@ -1,6 +1,8 @@
 #include "InferenceNode.h"
 #include <array>
+#include <chrono>
 #include <cstdint>
+#include <iomanip>
 #include "Logging.h"
 
 bool InferenceNode::Initialize(ID3D11Device* device, const wchar_t* weightsPath, int width, int height)
@@ -78,9 +80,18 @@ void InferenceNode::Evaluate(ID3D11DeviceContext* deviceContext, ID3D11ShaderRes
 
 void InferenceNode::RunInferenceOnStaging(ID3D11DeviceContext* deviceContext, ID3D11Texture2D* normalStaging, ID3D11Texture2D* depthStaging)
 {
+	using Clock = std::chrono::high_resolution_clock;
+	auto msSince = [](Clock::time_point start, Clock::time_point end) {
+		return std::chrono::duration<double, std::milli>(end - start).count();
+		};
+
+	const auto tMapStart = Clock::now();
+
 	D3D11_MAPPED_SUBRESOURCE normalMapped = {}, depthMapped = {};
 	deviceContext->Map(normalStaging, 0, D3D11_MAP_READ, 0, &normalMapped);
 	deviceContext->Map(depthStaging, 0, D3D11_MAP_READ, 0, &depthMapped);
+
+	const auto tPackStart = Clock::now();
 
 	const int pixelCount = m_width * m_height;
 	std::vector<float> mask(pixelCount);
@@ -111,7 +122,12 @@ void InferenceNode::RunInferenceOnStaging(ID3D11DeviceContext* deviceContext, ID
 	deviceContext->Unmap(normalStaging, 0);
 	deviceContext->Unmap(depthStaging, 0);
 
+	const auto tPackEnd = Clock::now();
+
 	const float* pred = nullptr;
+	bool ranInference = false;
+	bool wroteOutput = false;
+	Clock::time_point tInferEnd{}, tWriteEnd{};
 	try
 	{
 		Ort::MemoryInfo memoryInfo = Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeDefault);
@@ -122,6 +138,8 @@ void InferenceNode::RunInferenceOnStaging(ID3D11DeviceContext* deviceContext, ID
 		const char* outputNames[] = { m_outputName.c_str() };
 
 		auto outputTensors = m_session.Run(Ort::RunOptions{ nullptr }, inputNames, &inputTensor, 1, outputNames, 1);
+		tInferEnd = Clock::now();
+		ranInference = true;
 
 		// expected shape [1,3,H,W]; convert back to float here if the model's output is also fp16
 		std::vector<float> predFp32;
@@ -154,11 +172,37 @@ void InferenceNode::RunInferenceOnStaging(ID3D11DeviceContext* deviceContext, ID
 			}
 		}
 		deviceContext->Unmap(m_outputTexture.Get(), 0);
+		tWriteEnd = Clock::now();
+		wroteOutput = true;
 	}
 	catch (const Ort::Exception& e)
 	{
 		//Logging::DEBUG_LOG(L"InferenceNode: inference failed, skipping this frame");
 		Logging::DEBUG_LOG(L"InferenceNode: inference failed: %hs", e.what());
+	}
+
+	// rolling perf profile: mapStall/pack always ran, inference/writeback only count if they completed
+	m_mapStallMs += msSince(tMapStart, tPackStart);
+	m_packMs += msSince(tPackStart, tPackEnd);
+	if (ranInference)
+		m_inferenceMs += msSince(tPackEnd, tInferEnd);
+	if (wroteOutput)
+		m_writebackMs += msSince(tInferEnd, tWriteEnd);
+	m_profileFrameCount++;
+
+	if (m_profileFrameCount >= kProfileWindowFrames)
+	{
+		Logging::DEBUG_LOG(
+			L"InferenceNode profile (avg ms over ", m_profileFrameCount, L" frames): ",
+			std::fixed, std::setprecision(2),
+			L"mapStall=", m_mapStallMs / m_profileFrameCount,
+			L" pack=", m_packMs / m_profileFrameCount,
+			L" inference=", m_inferenceMs / m_profileFrameCount,
+			L" writeback=", m_writebackMs / m_profileFrameCount,
+			L" total=", (m_mapStallMs + m_packMs + m_inferenceMs + m_writebackMs) / m_profileFrameCount);
+
+		m_profileFrameCount = 0;
+		m_mapStallMs = m_packMs = m_inferenceMs = m_writebackMs = 0.0;
 	}
 }
 
