@@ -6,6 +6,7 @@
 #include <wrl/client.h>
 #include "Node.h"
 #include "GeometryNode.h"
+#include "InferenceNode.h"
 #include "Scene.h"
 
 using Microsoft::WRL::ComPtr;
@@ -75,6 +76,8 @@ private:
 
 	void RenderGrid(ID3D11DeviceContext* deviceContext, D3D11_VIEWPORT viewportRect);
 
+	void RenderCurvaturePass(ID3D11DeviceContext* deviceContext);
+
 	void Unbind(ID3D11DeviceContext* deviceContext);
 
 	ID3D11ShaderResourceView* GetSRVForShadingMode(int shadingMode);
@@ -86,10 +89,11 @@ private:
 	ComPtr<ID3D11SamplerState> m_sampler;
 	ComPtr<ID3D11BlendState> m_alphaBlendState;
 
-	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV;
-	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV;
+	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV, m_curvatureRTV;
+	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV, m_curvatureSRV;
 	ComPtr<ID3D11DepthStencilView> m_depthSV;
 
 	std::unique_ptr<GeometryNode> m_geometryNode;
-	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode;
+	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode;
+	std::unique_ptr<InferenceNode> m_inferenceNode;
 };

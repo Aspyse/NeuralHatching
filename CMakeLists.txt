@@ -48,6 +48,37 @@ FetchContent_Declare(rapidobj
 
 FetchContent_MakeAvailable(rapidobj)
 
+# onnxruntime (DirectML build) for InferenceNode GPU execution provider
+set(ONNXRUNTIME_VERSION "1.20.1" CACHE STRING "Microsoft.ML.OnnxRuntime.DirectML release version to fetch")
+set(DIRECTML_VERSION "1.15.2" CACHE STRING "Microsoft.AI.DirectML release version to fetch")
+
+FetchContent_Declare(
+	onnxruntime_directml
+	URL https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.DirectML/${ONNXRUNTIME_VERSION}
+	DOWNLOAD_NAME onnxruntime.nupkg.zip
+)
+FetchContent_MakeAvailable(onnxruntime_directml)
+
+FetchContent_Declare(
+	directml_redist
+	URL https://www.nuget.org/api/v2/package/Microsoft.AI.DirectML/${DIRECTML_VERSION}
+	DOWNLOAD_NAME directml.nupkg.zip
+)
+FetchContent_MakeAvailable(directml_redist)
+
+add_library(onnxruntime::onnxruntime SHARED IMPORTED)
+set_target_properties(onnxruntime::onnxruntime PROPERTIES
+	IMPORTED_LOCATION             "${onnxruntime_directml_SOURCE_DIR}/runtimes/win-x64/native/onnxruntime.dll"
+	IMPORTED_IMPLIB               "${onnxruntime_directml_SOURCE_DIR}/runtimes/win-x64/native/onnxruntime.lib"
+	INTERFACE_INCLUDE_DIRECTORIES "${onnxruntime_directml_SOURCE_DIR}/build/native/include"
+)
+
+# onnxruntime.dll and DirectML.dll must sit next to the .exe at runtime.
+set(ONNXRUNTIME_RUNTIME_DLLS
+	"${onnxruntime_directml_SOURCE_DIR}/runtimes/win-x64/native/onnxruntime.dll"
+	"${directml_redist_SOURCE_DIR}/bin/x64-win/DirectML.dll"
+)
+
 # Add source to this project's executable.
 add_executable (NeuralHatching
 	"NeuralHatching.cpp"
@@ -77,6 +108,8 @@ add_executable (NeuralHatching
 	"Shaders/Nodes/Node.cpp"
 	"Shaders/Nodes/GeometryNode.cpp"
 	"Shaders/Nodes/GeometryNode.h"
+	"Shaders/Nodes/InferenceNode.h"
+	"Shaders/Nodes/InferenceNode.cpp"
 	"Pipeline.h"
 	"Pipeline.cpp"
 	"Curvature.h"
@@ -98,12 +131,14 @@ target_link_libraries(NeuralHatching PRIVATE d3d11)
 target_link_libraries(NeuralHatching PRIVATE DirectXTK)
 target_link_libraries(NeuralHatching PRIVATE glm::glm)
 target_link_libraries(NeuralHatching PRIVATE rapidobj::rapidobj)
+target_link_libraries(NeuralHatching PRIVATE onnxruntime::onnxruntime)
 
 file(GLOB_RECURSE ALL_RESOURCES
 	"${CMAKE_SOURCE_DIR}/Shaders/*.hlsl"
 	"${CMAKE_SOURCE_DIR}/Models/*.ply"
 	"${CMAKE_SOURCE_DIR}/Models/*.glb"
-	"${CMAKE_SOURCE_DIR}/Models/*.obj")
+	"${CMAKE_SOURCE_DIR}/Models/*.obj"
+	"${CMAKE_SOURCE_DIR}/Weights/*.onnx")
 
 set(RESOURCE_OUTPUTS "")
 foreach(RESOURCE_FILE IN LISTS ALL_RESOURCES)
@@ -134,6 +169,13 @@ add_custom_target(
   COMMENT "Syncing changed resources")
 
 add_dependencies(NeuralHatching copy_resources)
+
+# onnxruntime.dll / DirectML.dll are loaded at runtime, so they need to land
+# next to NeuralHatching.exe, not just be link-time import libs.
+add_custom_command(TARGET NeuralHatching POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ONNXRUNTIME_RUNTIME_DLLS} "$<TARGET_FILE_DIR:NeuralHatching>"
+	COMMENT "Copying onnxruntime/DirectML runtime DLLs"
+	VERBATIM)
 
 target_compile_definitions(NeuralHatching PRIVATE UNICODE _UNICODE)
 

@@ -11,14 +11,15 @@
 
 using Microsoft::WRL::ComPtr;
 
-const int N_SHADING_MODES = 6;
+const int N_SHADING_MODES = 7;
 inline const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
 	"Matcap",
 	"Normals",
 	"Depth",
 	"Cross Field",
 	"Cross Field (Minimum)",
-	"Reliability"
+	"Reliability",
+	"Curvature (Neural)"
 };
 enum class ShadingMode : int
 {
@@ -27,7 +28,8 @@ enum class ShadingMode : int
 	Depth = 2,
 	Crossfield = 3,
 	Crossfield2 = 4,
-	Reliability = 5
+	Reliability = 5,
+	Curvature = 6
 };
 enum class LayoutMode : int
 {

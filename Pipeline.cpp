@@ -14,6 +14,7 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	result = CreateRenderTarget(device, m_reliabilityRTV.GetAddressOf(), m_reliabilitySRV.GetAddressOf(), textureWidth, textureHeight);
 
 	result = CreateRenderTarget(device, m_matcapRTV.GetAddressOf(), m_matcapSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_curvatureRTV.GetAddressOf(), m_curvatureSRV.GetAddressOf(), textureWidth, textureHeight);
 
 	m_geometryNode = std::make_unique<GeometryNode>();
 	m_geometryNode->Initialize(device, L"Shaders/geometry.hlsl", L"Shaders/geometry.hlsl", "GeometryVertexShader", "GeometryPixelShader");
@@ -29,6 +30,12 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 
 	m_gridNode = std::make_unique<Node>();
 	m_gridNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/grid.hlsl", "BaseVertexShader", "PostprocessShader");
+
+	m_curvaturePostNode = std::make_unique<Node>();
+	m_curvaturePostNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/curvature_post.hlsl", "BaseVertexShader", "PostprocessShader");
+
+	m_inferenceNode = std::make_unique<InferenceNode>();
+	m_inferenceNode->Initialize(device, L"Weights/neural_hatch_v3_fp16.onnx", textureWidth, textureHeight);
 
 	m_geometryNode->AddVSConstantBuffer<MatrixBuffer>(device);
 	m_geometryNode->AddPSConstantBuffer<MatrixBuffer>(device);
@@ -103,6 +110,7 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 	deviceContext->ClearRenderTargetView(m_normalRTV.Get(), CLEAR_COLOR);
 	deviceContext->ClearRenderTargetView(m_hatchRTV.Get(), CLEAR_COLOR);
 	deviceContext->ClearRenderTargetView(m_matcapRTV.Get(), CLEAR_COLOR);
+	deviceContext->ClearRenderTargetView(m_curvatureRTV.Get(), CLEAR_COLOR);
 	deviceContext->ClearRenderTargetView(m_hatch2RTV.Get(), CLEAR_COLOR);
 	deviceContext->ClearRenderTargetView(m_reliabilityRTV.Get(), CLEAR_COLOR);
 
@@ -155,6 +163,28 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 	deviceContext->PSSetShaderResources(0, 2, gbufferSRVPtr);
 	// Set matcap shader
 	m_matcapNode->Render(deviceContext);
+	// Draw fullscreen tri
+	deviceContext->Draw(3, 0);
+
+	Unbind(deviceContext);
+
+	RenderCurvaturePass(deviceContext);
+}
+
+void Pipeline::RenderCurvaturePass(ID3D11DeviceContext* deviceContext)
+{
+	// Run the neural prediction for this frame's normal+depth, writing the raw
+	// (unnormalized) result + mask into m_inferenceNode's output texture
+	m_inferenceNode->Evaluate(deviceContext, m_normalSRV.Get(), m_depthPassthruSRV.Get());
+
+	// Bind curvature RTV
+	ID3D11RenderTargetView* curvatureRTVPtr = m_curvatureRTV.Get();
+	deviceContext->OMSetRenderTargets(1, &curvatureRTVPtr, nullptr);
+	// Bind the raw prediction as input
+	ID3D11ShaderResourceView* rawPredictionSRVPtr = m_inferenceNode->GetOutputSRV();
+	deviceContext->PSSetShaderResources(0, 1, &rawPredictionSRVPtr);
+	// Set curvature postprocess shader (normalize/remap/mask, see curvature_post.hlsl)
+	m_curvaturePostNode->Render(deviceContext);
 	// Draw fullscreen tri
 	deviceContext->Draw(3, 0);
 
@@ -217,6 +247,8 @@ ID3D11ShaderResourceView* Pipeline::GetSRVForShadingMode(int shadingMode)
 		return m_hatch2SRV.Get();
 	case 5: // Reliability
 		return m_reliabilitySRV.Get();
+	case 6: // Curvature (neural)
+		return m_curvatureSRV.Get();
 	default:
 		return nullptr;
 	}
