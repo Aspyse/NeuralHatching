@@ -52,7 +52,12 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
     if (isAlive)
     {
         prevVelocity = CurvatureField.SampleLevel(LinearSampler, uv, 0).xy * 2.0f - 1.0f;
-        if (abs(prevVelocity.x) >= 1.0f || abs(prevVelocity.y) >= 1.0f)
+        // CurvatureField stores the xy projection of a normalized 3D vector, so
+        // x*x + y*y <= 1 always holds for real data (axis-aligned directions
+        // legitimately hit +-1 on a single component). Only unwritten background
+        // texels decode to (-1,-1), whose magnitude exceeds 1, so use that as
+        // the sentinel instead of a per-component check.
+        if (dot(prevVelocity, prevVelocity) > 1.01f)
         {
             isAlive = false;
         }
@@ -109,8 +114,10 @@ void CSMain(uint3 DTid : SV_DispatchThreadID)
         if (dot(prevVelocity, midVelocity) < 0.0f)
             midVelocity = -midVelocity;
         
-        // safeguard FIX: Kill the line if it hits garbage velocity data
-        if (abs(midVelocity.x) >= 1.0f || abs(midVelocity.y) >= 1.0f)
+        // safeguard FIX: Kill the line if it hits garbage (unwritten) velocity
+        // data. Same magnitude-based sentinel as the initial sample above --
+        // axis-aligned directions are valid and must not trip this.
+        if (dot(midVelocity, midVelocity) > 1.01f)
         {
             isAlive = false;
             continue;

@@ -14,8 +14,7 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
     float3 pred = raw.rgb;
     float mask = raw.a;
 
-    // mirrors the Python postprocessing exactly:
-    // val_pred = val_pred / (norm(val_pred) + 7e-5); val_pred = (val_pred+1)/2; val_pred *= mask
+    // py: val_pred = val_pred / (norm(val_pred) + 7e-5); val_pred = (val_pred+1)/2; val_pred *= mask
     pred = pred / (length(pred) + 7e-5);
     pred = (pred + 1.0) * 0.5;
     pred *= mask;

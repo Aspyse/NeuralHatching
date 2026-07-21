@@ -16,6 +16,10 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	result = CreateRenderTarget(device, m_matcapRTV.GetAddressOf(), m_matcapSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_curvatureRTV.GetAddressOf(), m_curvatureSRV.GetAddressOf(), textureWidth, textureHeight);
 
+	result = CreateRenderTarget(device, m_hatchLinesRTV.GetAddressOf(), m_hatchLinesSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_hatch2LinesRTV.GetAddressOf(), m_hatch2LinesSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_curvatureLinesRTV.GetAddressOf(), m_curvatureLinesSRV.GetAddressOf(), textureWidth, textureHeight);
+
 	m_geometryNode = std::make_unique<GeometryNode>();
 	m_geometryNode->Initialize(device, L"Shaders/geometry.hlsl", L"Shaders/geometry.hlsl", "GeometryVertexShader", "GeometryPixelShader");
 
@@ -37,11 +41,27 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	m_inferenceNode = std::make_unique<InferenceNode>();
 	m_inferenceNode->Initialize(device, L"Weights/neural_hatch_v3_fp16.onnx", textureWidth, textureHeight);
 
+	// vertex-pulls whichever field is bound and draws them
+	m_hatchLineNode = std::make_unique<Node>();
+	m_hatchLineNode->Initialize(device, L"Shaders/hatch_lines.hlsl", L"Shaders/hatch_lines.hlsl", "HatchLineVertexShader", "HatchLinePixelShader");
+
+	// one tracer per direction field
+	m_hatchTraceNode = std::make_unique<HatchTraceNode>();
+	m_hatchTraceNode->Initialize(device, L"Shaders/hatch.hlsl", "CSMain", 0.01f, 0.008f, 48, 0.0035f, 256, 256, 1u);
+
+	m_hatch2TraceNode = std::make_unique<HatchTraceNode>();
+	m_hatch2TraceNode->Initialize(device, L"Shaders/hatch.hlsl", "CSMain", 0.01f, 0.008f, 48, 0.0035f, 256, 256, 2u);
+
+	m_curvatureTraceNode = std::make_unique<HatchTraceNode>();
+	m_curvatureTraceNode->Initialize(device, L"Shaders/hatch.hlsl", "CSMain", 0.01f, 0.008f, 48, 0.0035f, 256, 256, 3u);
+
 	m_geometryNode->AddVSConstantBuffer<MatrixBuffer>(device);
 	m_geometryNode->AddPSConstantBuffer<MatrixBuffer>(device);
 	m_depthPassthruNode->AddPSConstantBuffer<DepthBuffer>(device);
 	m_matcapNode->AddPSConstantBuffer<MatcapBuffer>(device);
 	m_gridNode->AddPSConstantBuffer<GridBuffer>(device);
+	m_hatchLineNode->AddVSConstantBuffer<HatchLineBuffer>(device);
+	m_hatchLineNode->AddPSConstantBuffer<HatchLineBuffer>(device);
 
 	InitializeDepthTarget(device, textureWidth, textureHeight);
 	InitializeBlendState(device);
@@ -169,6 +189,7 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 	Unbind(deviceContext);
 
 	RenderCurvaturePass(deviceContext);
+	RenderHatchingPass(deviceContext);
 }
 
 void Pipeline::RenderCurvaturePass(ID3D11DeviceContext* deviceContext)
@@ -187,6 +208,86 @@ void Pipeline::RenderCurvaturePass(ID3D11DeviceContext* deviceContext)
 	m_curvaturePostNode->Render(deviceContext);
 	// Draw fullscreen tri
 	deviceContext->Draw(3, 0);
+
+	Unbind(deviceContext);
+}
+
+void Pipeline::RenderHatchingPass(ID3D11DeviceContext* deviceContext)
+{
+	// Each field gets its own trace + draw, sharing only the line shader.
+	glm::vec3 inkColor = glm::vec3(0.0f, 0.0f, 0.0f);
+	RenderHatchLines(deviceContext, m_hatchTraceNode.get(), m_hatchSRV.Get(), m_hatchLinesRTV.Get(), inkColor);
+	RenderHatchLines(deviceContext, m_hatch2TraceNode.get(), m_hatch2SRV.Get(), m_hatch2LinesRTV.Get(), inkColor);
+	RenderHatchLines(deviceContext, m_curvatureTraceNode.get(), m_curvatureSRV.Get(), m_curvatureLinesRTV.Get(), inkColor);
+}
+
+void Pipeline::RenderHatchLines(ID3D11DeviceContext* deviceContext, HatchTraceNode* tracer, ID3D11ShaderResourceView* fieldSRV, ID3D11RenderTargetView* targetRTV, glm::vec3 inkColor)
+{
+	// Trace this field's streamlines (writes into the tracer's own line
+	// vertex buffer + occupancy grid, clearing them first).
+	tracer->Trace(deviceContext, fieldSRV);
+
+	const float whiteClear[4] = { 1.0f, 1.0f, 1.0f, 1.0f };
+	deviceContext->ClearRenderTargetView(targetRTV, whiteClear); // was CLEAR_COLOR
+
+	D3D11_VIEWPORT fullViewport = {};
+	fullViewport.TopLeftX = 0.0f;
+	fullViewport.TopLeftY = 0.0f;
+	fullViewport.Width = static_cast<float>(m_bufferWidth);
+	fullViewport.Height = static_cast<float>(m_bufferHeight);
+	fullViewport.MinDepth = 0.0f;
+	fullViewport.MaxDepth = 1.0f;
+	deviceContext->RSSetViewports(1, &fullViewport);
+
+	HatchLineBuffer lineBuffer;
+	lineBuffer.screenSize = glm::vec2(static_cast<float>(m_bufferWidth), static_cast<float>(m_bufferHeight));
+	lineBuffer.lineWidthPx = 0.1f;
+	lineBuffer.stepsPerSeed = tracer->GetMaxSteps() - 1;
+	lineBuffer.lineColor = inkColor;
+	lineBuffer.pad = 0.0f;
+
+	m_hatchLineNode->UpdateVSConstantBuffer<HatchLineBuffer>(deviceContext, lineBuffer, 0);
+	m_hatchLineNode->UpdatePSConstantBuffer<HatchLineBuffer>(deviceContext, lineBuffer, 0);
+
+	// Bind output RTV and this field's traced-line buffer for vertex-pulling
+	ID3D11RenderTargetView* rtvPtr = targetRTV;
+	deviceContext->OMSetRenderTargets(1, &rtvPtr, nullptr);
+	ID3D11ShaderResourceView* lineVerticesSRV = tracer->GetLineVertexSRV();
+	deviceContext->VSSetShaderResources(0, 1, &lineVerticesSRV);
+
+	float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	deviceContext->OMSetBlendState(m_alphaBlendState.Get(), blendFactor, 0xffffffff);
+
+	// FIX: hatch_lines.hlsl generates each quad's two triangles with a fixed
+	// winding order regardless of segment direction (see HatchLineVertexShader),
+	// so with the global CULL_BACK state from Viewport::InitializeRasterizer(),
+	// every hatch quad was being culled -- there's no live vs. dead distinction
+	// at the rasterizer, they're ALL back-facing. There's no meaningful "back
+	// face" for a 2D screen-space line quad, so just disable culling for this draw.
+	static ComPtr<ID3D11RasterizerState> s_noCullState;
+	if (!s_noCullState)
+	{
+		ComPtr<ID3D11Device> device;
+		deviceContext->GetDevice(device.GetAddressOf());
+
+		D3D11_RASTERIZER_DESC rd = {};
+		rd.FillMode = D3D11_FILL_SOLID;
+		rd.CullMode = D3D11_CULL_NONE;
+		rd.DepthClipEnable = TRUE;
+		device->CreateRasterizerState(&rd, s_noCullState.GetAddressOf());
+	}
+	ComPtr<ID3D11RasterizerState> prevRasterState;
+	deviceContext->RSGetState(prevRasterState.GetAddressOf());
+	deviceContext->RSSetState(s_noCullState.Get());
+
+	m_hatchLineNode->Render(deviceContext);
+	deviceContext->Draw(tracer->GetSegmentCount() * 6, 0);
+
+	deviceContext->RSSetState(prevRasterState.Get());
+	deviceContext->OMSetBlendState(nullptr, blendFactor, 0xffffffff);
+
+	ID3D11ShaderResourceView* nullSRV = nullptr;
+	deviceContext->VSSetShaderResources(0, 1, &nullSRV);
 
 	Unbind(deviceContext);
 }
@@ -249,6 +350,12 @@ ID3D11ShaderResourceView* Pipeline::GetSRVForShadingMode(int shadingMode)
 		return m_reliabilitySRV.Get();
 	case 6: // Curvature (neural)
 		return m_curvatureSRV.Get();
+	case 7: // Cross-hatch (traced)
+		return m_hatchLinesSRV.Get();
+	case 8: // Cross-hatch 2 (traced)
+		return m_hatch2LinesSRV.Get();
+	case 9: // Curvature hatch (traced)
+		return m_curvatureLinesSRV.Get();
 	default:
 		return nullptr;
 	}

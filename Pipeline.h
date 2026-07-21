@@ -7,6 +7,7 @@
 #include "Node.h"
 #include "GeometryNode.h"
 #include "InferenceNode.h"
+#include "HatchTraceNode.h"
 #include "Scene.h"
 
 using Microsoft::WRL::ComPtr;
@@ -50,6 +51,15 @@ private:
 		glm::vec3 lineColor;
 		float pad;
 	};
+	struct HatchLineBuffer
+	{
+		glm::vec2 screenSize;
+		float lineWidthPx;
+		int stepsPerSeed;
+
+		glm::vec3 lineColor;
+		float pad;
+	};
 
 public:
 	Pipeline() {};
@@ -78,6 +88,9 @@ private:
 
 	void RenderCurvaturePass(ID3D11DeviceContext* deviceContext);
 
+	void RenderHatchingPass(ID3D11DeviceContext* deviceContext);
+	void RenderHatchLines(ID3D11DeviceContext* deviceContext, HatchTraceNode* tracer, ID3D11ShaderResourceView* fieldSRV, ID3D11RenderTargetView* targetRTV, glm::vec3 inkColor);
+
 	void Unbind(ID3D11DeviceContext* deviceContext);
 
 	ID3D11ShaderResourceView* GetSRVForShadingMode(int shadingMode);
@@ -93,7 +106,12 @@ private:
 	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV, m_curvatureSRV;
 	ComPtr<ID3D11DepthStencilView> m_depthSV;
 
+	// Traced + drawn hatch lines, one output per direction field.
+	ComPtr<ID3D11RenderTargetView> m_hatchLinesRTV, m_hatch2LinesRTV, m_curvatureLinesRTV;
+	ComPtr<ID3D11ShaderResourceView> m_hatchLinesSRV, m_hatch2LinesSRV, m_curvatureLinesSRV;
+
 	std::unique_ptr<GeometryNode> m_geometryNode;
-	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode;
+	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_hatchLineNode;
 	std::unique_ptr<InferenceNode> m_inferenceNode;
+	std::unique_ptr<HatchTraceNode> m_hatchTraceNode, m_hatch2TraceNode, m_curvatureTraceNode;
 };
