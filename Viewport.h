@@ -11,7 +11,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-const int N_SHADING_MODES = 10;
+const int N_SHADING_MODES = 14;
 inline const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
 	"Matcap",
 	"Normals",
@@ -22,7 +22,11 @@ inline const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
 	"Curvature (Neural)",
 	"Cross-Hatch (Traced)",
 	"Cross-Hatch (Minimum, Traced)",
-	"Curvature Hatch (Traced)"
+	"Curvature Hatch (Traced)",
+	"Cross-Hatch (Masked)",
+	"Cross-Hatch (Minimum, Masked)",
+	"Curvature Hatch (Masked)",
+	"Lit Mask"
 };
 enum class ShadingMode : int
 {
@@ -35,7 +39,11 @@ enum class ShadingMode : int
 	Curvature = 6,
 	CrossHatch = 7,
 	CrossHatch2 = 8,
-	CurvatureHatch = 9
+	CurvatureHatch = 9,
+	CrossHatchMasked = 10,
+	CrossHatch2Masked = 11,
+	CurvatureHatchMasked = 12,
+	LitMask = 13
 };
 enum class LayoutMode : int
 {
@@ -74,6 +82,9 @@ public:
 
 	void SetTopInset(float inset);
 
+	const glm::vec3& GetLightDirection() const;
+	void SetLightDirection(const glm::vec3& dir);
+
 	void CaptureDatapoint(std::wstring = L"");
 
 private:
@@ -92,7 +103,8 @@ private:
 	void RebuildViews();
 
 private:
-	const glm::vec3 MATCAP_LIGHT = { 0.1f, -1.0f, 0.05f };
+	// was a const, now editable from the UI -- still used as the light dir for matcap + shadows
+	glm::vec3 m_lightDirection = { 0.1f, -1.0f, 0.05f };
 
 	bool m_isSwapChainOccluded = false;
 

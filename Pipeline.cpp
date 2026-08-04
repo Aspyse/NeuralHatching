@@ -1,4 +1,5 @@
 #include "Pipeline.h"
+#include <glm/gtc/matrix_transform.hpp>
 
 void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, int textureWidth, int textureHeight)
 {
@@ -19,6 +20,14 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	result = CreateRenderTarget(device, m_hatchLinesRTV.GetAddressOf(), m_hatchLinesSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_hatch2LinesRTV.GetAddressOf(), m_hatch2LinesSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_curvatureLinesRTV.GetAddressOf(), m_curvatureLinesSRV.GetAddressOf(), textureWidth, textureHeight);
+
+	// NdotL * shadow visibility, shared by the 3 masked hatch outputs below
+	result = CreateRenderTarget(device, m_litMaskRTV.GetAddressOf(), m_litMaskSRV.GetAddressOf(), textureWidth, textureHeight);
+
+	// each traced hatch layer x m_litMaskSRV
+	result = CreateRenderTarget(device, m_hatchMaskedRTV.GetAddressOf(), m_hatchMaskedSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_hatch2MaskedRTV.GetAddressOf(), m_hatch2MaskedSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_curvatureMaskedRTV.GetAddressOf(), m_curvatureMaskedSRV.GetAddressOf(), textureWidth, textureHeight);
 
 	m_geometryNode = std::make_unique<GeometryNode>();
 	m_geometryNode->Initialize(device, L"Shaders/geometry.hlsl", L"Shaders/geometry.hlsl", "GeometryVertexShader", "GeometryPixelShader");
@@ -45,6 +54,18 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	m_hatchLineNode = std::make_unique<Node>();
 	m_hatchLineNode->Initialize(device, L"Shaders/hatch_lines.hlsl", L"Shaders/hatch_lines.hlsl", "HatchLineVertexShader", "HatchLinePixelShader");
 
+	// depth-only pass from the light's POV, reuses GeometryNode's input layout
+	m_shadowDepthNode = std::make_unique<GeometryNode>();
+	m_shadowDepthNode->Initialize(device, L"Shaders/shadow_depth.hlsl", L"Shaders/shadow_depth.hlsl", "ShadowVertexShader", "ShadowPixelShader");
+
+	// NdotL * shadow visibility, shared across all three hatch layers
+	m_litMaskNode = std::make_unique<Node>();
+	m_litMaskNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/lit_mask.hlsl", "BaseVertexShader", "LitMaskPixelShader");
+
+	// masks one hatch layer's traced-line texture with m_litMaskSRV; run 3x
+	m_hatchMaskNode = std::make_unique<Node>();
+	m_hatchMaskNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/hatch_mask.hlsl", "BaseVertexShader", "HatchMaskPixelShader");
+
 	// one tracer per direction field
 	m_hatchTraceNode = std::make_unique<HatchTraceNode>();
 	m_hatchTraceNode->Initialize(device, L"Shaders/hatch.hlsl", "CSMain", 0.01f, 0.008f, 48, 0.0035f, 256, 256, 1u);
@@ -63,7 +84,13 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	m_hatchLineNode->AddVSConstantBuffer<HatchLineBuffer>(device);
 	m_hatchLineNode->AddPSConstantBuffer<HatchLineBuffer>(device);
 
+	m_shadowDepthNode->AddVSConstantBuffer<ShadowMatrixBuffer>(device);
+	m_litMaskNode->AddPSConstantBuffer<LitMaskBuffer>(device);
+	// m_hatchMaskNode takes no constant buffer -- both its inputs are textures
+
 	InitializeDepthTarget(device, textureWidth, textureHeight);
+	InitializeShadowMap(device, m_shadowMapSize);
+	InitializeShadowSampler(device);
 	InitializeBlendState(device);
 }
 
@@ -99,6 +126,32 @@ void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix
 	m_depthPassthruNode->UpdatePSConstantBuffer<DepthBuffer>(deviceContext, depthBuffer, 0);
 	m_matcapNode->UpdatePSConstantBuffer<MatcapBuffer>(deviceContext, matcapBuffer, 0);
 	m_gridNode->UpdatePSConstantBuffer<GridBuffer>(deviceContext, gridBuffer, 0);
+
+	// Directional light: orthographic frustum around the scene.
+	// Model::Autonormalize() fits every model to a unit sphere at the origin (see Model.cpp),
+	// so a radius-1 sphere at the origin bounds the scene exactly -- no more guessing.
+	const float sceneRadius = 1.0f;
+	glm::vec3 lightDirWS = glm::normalize(lightDirection);
+	glm::vec3 sceneCenter = glm::vec3(0.0f);
+	glm::vec3 up = (std::abs(lightDirWS.y) > 0.99f) ? glm::vec3(0.0f, 0.0f, 1.0f) : glm::vec3(0.0f, 1.0f, 0.0f);
+	glm::vec3 lightEye = sceneCenter - lightDirWS * (sceneRadius * 2.0f);
+
+	m_lightViewMatrix = glm::lookAt(lightEye, sceneCenter, up);
+	// eye sits at 2*radius from center, so the sphere spans [radius, 3*radius] along the view axis --
+	// near/far follow that exactly instead of the old fixed 0.1f, tightening depth precision.
+	m_lightProjectionMatrix = glm::ortho(
+		-sceneRadius, sceneRadius,
+		-sceneRadius, sceneRadius,
+		sceneRadius * 0.5f, sceneRadius * 3.5f);
+
+	LitMaskBuffer litMaskBuffer;
+	litMaskBuffer.invProj = matcapBuffer.invProj;
+	litMaskBuffer.invView = matcapBuffer.invView;
+	litMaskBuffer.lightViewProj = glm::transpose(m_lightProjectionMatrix * m_lightViewMatrix);
+	litMaskBuffer.lightDirectionVS = matcapBuffer.lightDirectionVS;
+	litMaskBuffer.shadowBias = 0.003f;
+
+	m_litMaskNode->UpdatePSConstantBuffer<LitMaskBuffer>(deviceContext, litMaskBuffer, 0);
 }
 
 void Pipeline::SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 worldMatrix, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
@@ -115,6 +168,9 @@ void Pipeline::SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 world
 
 void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* scene, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
 {
+	// independent of the g-buffer, safe to run first
+	RenderShadowPass(deviceContext, scene);
+
 	// runs once per frame regardless of how many views composite from it
 	D3D11_VIEWPORT fullViewport = {};
 	fullViewport.TopLeftX = 0.0f;
@@ -190,6 +246,11 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 
 	RenderCurvaturePass(deviceContext);
 	RenderHatchingPass(deviceContext);
+
+	// needs normal+depth from above and the shadow map from RenderShadowPass
+	RenderLitMaskPass(deviceContext);
+	// needs the traced hatch textures + the mask from RenderLitMaskPass
+	RenderHatchMaskPass(deviceContext);
 }
 
 void Pipeline::RenderCurvaturePass(ID3D11DeviceContext* deviceContext)
@@ -241,7 +302,7 @@ void Pipeline::RenderHatchLines(ID3D11DeviceContext* deviceContext, HatchTraceNo
 
 	HatchLineBuffer lineBuffer;
 	lineBuffer.screenSize = glm::vec2(static_cast<float>(m_bufferWidth), static_cast<float>(m_bufferHeight));
-	lineBuffer.lineWidthPx = 0.1f;
+	lineBuffer.lineWidthPx = 0.01f;
 	lineBuffer.stepsPerSeed = tracer->GetMaxSteps() - 1;
 	lineBuffer.lineColor = inkColor;
 	lineBuffer.pad = 0.0f;
@@ -288,6 +349,83 @@ void Pipeline::RenderHatchLines(ID3D11DeviceContext* deviceContext, HatchTraceNo
 
 	ID3D11ShaderResourceView* nullSRV = nullptr;
 	deviceContext->VSSetShaderResources(0, 1, &nullSRV);
+
+	Unbind(deviceContext);
+}
+
+void Pipeline::RenderShadowPass(ID3D11DeviceContext* deviceContext, Scene* scene)
+{
+	D3D11_VIEWPORT shadowViewport = {};
+	shadowViewport.TopLeftX = 0.0f;
+	shadowViewport.TopLeftY = 0.0f;
+	shadowViewport.Width = static_cast<float>(m_shadowMapSize);
+	shadowViewport.Height = static_cast<float>(m_shadowMapSize);
+	shadowViewport.MinDepth = 0.0f;
+	shadowViewport.MaxDepth = 1.0f;
+	deviceContext->RSSetViewports(1, &shadowViewport);
+
+	deviceContext->ClearDepthStencilView(m_shadowDepthDSV.Get(), D3D11_CLEAR_DEPTH, 1.0f, 0);
+	// no RTV bound, ShadowPixelShader writes nothing
+	deviceContext->OMSetRenderTargets(0, nullptr, m_shadowDepthDSV.Get());
+
+	for (auto& [id, model] : scene->GetModels())
+	{
+		ShadowMatrixBuffer shadowBuffer;
+		shadowBuffer.worldMatrix = glm::transpose(model->GetWorldMatrix());
+		shadowBuffer.lightViewMatrix = glm::transpose(m_lightViewMatrix);
+		shadowBuffer.lightProjectionMatrix = glm::transpose(m_lightProjectionMatrix);
+
+		m_shadowDepthNode->UpdateVSConstantBuffer<ShadowMatrixBuffer>(deviceContext, shadowBuffer, 0);
+
+		model->Render(deviceContext);
+		m_shadowDepthNode->Render(deviceContext);
+		deviceContext->DrawIndexed(model->GetIndexCount(), 0, 0);
+	}
+
+	deviceContext->OMSetRenderTargets(0, nullptr, nullptr);
+}
+
+void Pipeline::RenderLitMaskPass(ID3D11DeviceContext* deviceContext)
+{
+	ID3D11RenderTargetView* litMaskRTVPtr = m_litMaskRTV.Get();
+	deviceContext->OMSetRenderTargets(1, &litMaskRTVPtr, nullptr);
+
+	// t0 normal, t1 depth, t2 shadow map
+	ID3D11ShaderResourceView* srvs[] = { m_normalSRV.Get(), m_depthSRV.Get(), m_shadowDepthSRV.Get() };
+	deviceContext->PSSetShaderResources(0, 3, srvs);
+
+	// s0 assumed already bound globally like the other postprocess passes
+	deviceContext->PSSetSamplers(1, 1, m_shadowSampler.GetAddressOf());
+
+	m_litMaskNode->Render(deviceContext);
+	deviceContext->Draw(3, 0);
+
+	ID3D11ShaderResourceView* nullSRVs[] = { nullptr, nullptr, nullptr };
+	deviceContext->PSSetShaderResources(0, 3, nullSRVs);
+
+	Unbind(deviceContext);
+}
+
+void Pipeline::RenderHatchMaskPass(ID3D11DeviceContext* deviceContext)
+{
+	RenderHatchMask(deviceContext, m_hatchLinesSRV.Get(), m_hatchMaskedRTV.Get());
+	RenderHatchMask(deviceContext, m_hatch2LinesSRV.Get(), m_hatch2MaskedRTV.Get());
+	RenderHatchMask(deviceContext, m_curvatureLinesSRV.Get(), m_curvatureMaskedRTV.Get());
+}
+
+void Pipeline::RenderHatchMask(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchLinesSRV, ID3D11RenderTargetView* maskedRTV)
+{
+	ID3D11RenderTargetView* rtvPtr = maskedRTV;
+	deviceContext->OMSetRenderTargets(1, &rtvPtr, nullptr);
+
+	ID3D11ShaderResourceView* srvs[] = { hatchLinesSRV, m_litMaskSRV.Get() };
+	deviceContext->PSSetShaderResources(0, 2, srvs);
+
+	m_hatchMaskNode->Render(deviceContext);
+	deviceContext->Draw(3, 0);
+
+	ID3D11ShaderResourceView* nullSRVs[] = { nullptr, nullptr };
+	deviceContext->PSSetShaderResources(0, 2, nullSRVs);
 
 	Unbind(deviceContext);
 }
@@ -356,6 +494,14 @@ ID3D11ShaderResourceView* Pipeline::GetSRVForShadingMode(int shadingMode)
 		return m_hatch2LinesSRV.Get();
 	case 9: // Curvature hatch (traced)
 		return m_curvatureLinesSRV.Get();
+	case 10: // Cross-hatch, lit/unlit masked
+		return m_hatchMaskedSRV.Get();
+	case 11: // Cross-hatch 2, lit/unlit masked
+		return m_hatch2MaskedSRV.Get();
+	case 12: // Curvature hatch, lit/unlit masked
+		return m_curvatureMaskedSRV.Get();
+	case 13: // Lit mask alone (NdotL * shadow visibility)
+		return m_litMaskSRV.Get();
 	default:
 		return nullptr;
 	}
@@ -539,4 +685,62 @@ bool Pipeline::InitializeDepthTarget(ID3D11Device* device, int textureWidth, int
 	device->CreateShaderResourceView(depthTexture.Get(), &srvDesc, m_depthSRV.GetAddressOf());
 
 	return true;
+}
+
+bool Pipeline::InitializeShadowMap(ID3D11Device* device, int shadowMapSize)
+{
+	D3D11_TEXTURE2D_DESC shadowDesc = {};
+	shadowDesc.Width = shadowMapSize;
+	shadowDesc.Height = shadowMapSize;
+	shadowDesc.MipLevels = 1;
+	shadowDesc.ArraySize = 1;
+	shadowDesc.SampleDesc.Count = 1;
+	shadowDesc.Usage = D3D11_USAGE_DEFAULT;
+	shadowDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
+	shadowDesc.Format = DXGI_FORMAT_R24G8_TYPELESS; // same split as InitializeDepthTarget above
+
+	ComPtr<ID3D11Texture2D> shadowTexture;
+	HRESULT result = device->CreateTexture2D(&shadowDesc, nullptr, shadowTexture.GetAddressOf());
+	if (FAILED(result))
+		return false;
+
+	D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc = {};
+	dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+	dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+	dsvDesc.Texture2D.MipSlice = 0;
+
+	result = device->CreateDepthStencilView(shadowTexture.Get(), &dsvDesc, m_shadowDepthDSV.GetAddressOf());
+	if (FAILED(result))
+		return false;
+
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+	srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+	srvDesc.Texture2D.MipLevels = 1;
+	srvDesc.Texture2D.MostDetailedMip = 0;
+
+	result = device->CreateShaderResourceView(shadowTexture.Get(), &srvDesc, m_shadowDepthSRV.GetAddressOf());
+	if (FAILED(result))
+		return false;
+
+	m_shadowMapSize = shadowMapSize;
+	return true;
+}
+
+bool Pipeline::InitializeShadowSampler(ID3D11Device* device)
+{
+	D3D11_SAMPLER_DESC sd = {};
+	sd.Filter = D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
+	sd.AddressU = D3D11_TEXTURE_ADDRESS_BORDER;
+	sd.AddressV = D3D11_TEXTURE_ADDRESS_BORDER;
+	sd.AddressW = D3D11_TEXTURE_ADDRESS_BORDER;
+	// border = lit, so sampling outside the frustum doesn't read as shadowed
+	sd.BorderColor[0] = 1.0f;
+	sd.BorderColor[1] = 1.0f;
+	sd.BorderColor[2] = 1.0f;
+	sd.BorderColor[3] = 1.0f;
+	sd.ComparisonFunc = D3D11_COMPARISON_LESS_EQUAL;
+
+	HRESULT result = device->CreateSamplerState(&sd, m_shadowSampler.GetAddressOf());
+	return SUCCEEDED(result);
 }

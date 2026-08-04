@@ -270,6 +270,13 @@ bool UI::Frame()
 
 		ImGui::Separator();
 
+		// raw direction, gets normalized downstream in Pipeline::Update
+		glm::vec3 lightDir = m_viewport->GetLightDirection();
+		if (ImGui::DragFloat3("Light Direction", &lightDir.x, 0.01f, -1.0f, 1.0f))
+			m_viewport->SetLightDirection(lightDir);
+
+		ImGui::Separator();
+
 		auto it = m_scene->GetModels().find(selected_key);
 		if (it != m_scene->GetModels().end())
 		{

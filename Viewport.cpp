@@ -77,6 +77,16 @@ void Viewport::SetTopInset(float inset)
 	RebuildViews();
 }
 
+const glm::vec3& Viewport::GetLightDirection() const
+{
+	return m_lightDirection;
+}
+
+void Viewport::SetLightDirection(const glm::vec3& dir)
+{
+	m_lightDirection = dir;
+}
+
 void Viewport::RebuildViews()
 {
 	// read by Render() and UI
@@ -137,7 +147,7 @@ bool Viewport::Render(glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix, Scen
 	m_isSwapChainOccluded = false;
 
 	// Render 3D
-	glm::vec3 lightNorm = glm::normalize(MATCAP_LIGHT);
+	glm::vec3 lightNorm = glm::normalize(m_lightDirection);
 	m_pipeline->Update(m_deviceContext.Get(), viewMatrix, projectionMatrix, lightNorm, m_near, m_far);
 	//model->Render(m_deviceContext.Get());
 	m_pipeline->RenderGeometryPass(m_deviceContext.Get(), scene, viewMatrix, projectionMatrix);

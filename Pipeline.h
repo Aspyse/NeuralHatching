@@ -60,6 +60,21 @@ private:
 		glm::vec3 lineColor;
 		float pad;
 	};
+	struct ShadowMatrixBuffer
+	{
+		glm::mat4x4 worldMatrix;
+		glm::mat4x4 lightViewMatrix;
+		glm::mat4x4 lightProjectionMatrix;
+	};
+	struct LitMaskBuffer
+	{
+		glm::mat4x4 invProj;
+		glm::mat4x4 invView;
+		glm::mat4x4 lightViewProj;
+
+		glm::vec3 lightDirectionVS;
+		float shadowBias;
+	};
 
 public:
 	Pipeline() {};
@@ -82,6 +97,9 @@ private:
 
 	bool InitializeBlendState(ID3D11Device* device);
 
+	bool InitializeShadowMap(ID3D11Device* device, int shadowMapSize);
+	bool InitializeShadowSampler(ID3D11Device* device);
+
 	void SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 worldMatrix, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
 
 	void RenderGrid(ID3D11DeviceContext* deviceContext, D3D11_VIEWPORT viewportRect);
@@ -90,6 +108,11 @@ private:
 
 	void RenderHatchingPass(ID3D11DeviceContext* deviceContext);
 	void RenderHatchLines(ID3D11DeviceContext* deviceContext, HatchTraceNode* tracer, ID3D11ShaderResourceView* fieldSRV, ID3D11RenderTargetView* targetRTV, glm::vec3 inkColor);
+
+	void RenderShadowPass(ID3D11DeviceContext* deviceContext, Scene* scene);
+	void RenderLitMaskPass(ID3D11DeviceContext* deviceContext);
+	void RenderHatchMaskPass(ID3D11DeviceContext* deviceContext);
+	void RenderHatchMask(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchLinesSRV, ID3D11RenderTargetView* maskedRTV);
 
 	void Unbind(ID3D11DeviceContext* deviceContext);
 
@@ -110,8 +133,19 @@ private:
 	ComPtr<ID3D11RenderTargetView> m_hatchLinesRTV, m_hatch2LinesRTV, m_curvatureLinesRTV;
 	ComPtr<ID3D11ShaderResourceView> m_hatchLinesSRV, m_hatch2LinesSRV, m_curvatureLinesSRV;
 
-	std::unique_ptr<GeometryNode> m_geometryNode;
-	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_hatchLineNode;
+	// NdotL * shadow visibility, and each hatch layer masked by it
+	ComPtr<ID3D11RenderTargetView> m_litMaskRTV, m_hatchMaskedRTV, m_hatch2MaskedRTV, m_curvatureMaskedRTV;
+	ComPtr<ID3D11ShaderResourceView> m_litMaskSRV, m_hatchMaskedSRV, m_hatch2MaskedSRV, m_curvatureMaskedSRV;
+
+	// shadow map (light-space depth)
+	ComPtr<ID3D11DepthStencilView> m_shadowDepthDSV;
+	ComPtr<ID3D11ShaderResourceView> m_shadowDepthSRV;
+	ComPtr<ID3D11SamplerState> m_shadowSampler;
+	int m_shadowMapSize = 2048;
+	glm::mat4x4 m_lightViewMatrix, m_lightProjectionMatrix;
+
+	std::unique_ptr<GeometryNode> m_geometryNode, m_shadowDepthNode;
+	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_hatchLineNode, m_litMaskNode, m_hatchMaskNode;
 	std::unique_ptr<InferenceNode> m_inferenceNode;
 	std::unique_ptr<HatchTraceNode> m_hatchTraceNode, m_hatch2TraceNode, m_curvatureTraceNode;
 };
