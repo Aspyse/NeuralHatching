@@ -29,6 +29,9 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	result = CreateRenderTarget(device, m_hatch2MaskedRTV.GetAddressOf(), m_hatch2MaskedSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_curvatureMaskedRTV.GetAddressOf(), m_curvatureMaskedSRV.GetAddressOf(), textureWidth, textureHeight);
 
+	// debug only, not part of the normal shading chain
+	result = CreateRenderTarget(device, m_shadowDebugRTV.GetAddressOf(), m_shadowDebugSRV.GetAddressOf(), textureWidth, textureHeight);
+
 	m_geometryNode = std::make_unique<GeometryNode>();
 	m_geometryNode->Initialize(device, L"Shaders/geometry.hlsl", L"Shaders/geometry.hlsl", "GeometryVertexShader", "GeometryPixelShader");
 
@@ -66,6 +69,10 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	m_hatchMaskNode = std::make_unique<Node>();
 	m_hatchMaskNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/hatch_mask.hlsl", "BaseVertexShader", "HatchMaskPixelShader");
 
+	// false-color lit/shadowed/out-of-bounds view, shares LitMaskBuffer with m_litMaskNode
+	m_shadowDebugNode = std::make_unique<Node>();
+	m_shadowDebugNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/shadow_debug.hlsl", "BaseVertexShader", "ShadowDebugPixelShader");
+
 	// one tracer per direction field
 	m_hatchTraceNode = std::make_unique<HatchTraceNode>();
 	m_hatchTraceNode->Initialize(device, L"Shaders/hatch.hlsl", "CSMain", 0.01f, 0.008f, 48, 0.0035f, 256, 256, 1u);
@@ -86,6 +93,7 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 
 	m_shadowDepthNode->AddVSConstantBuffer<ShadowMatrixBuffer>(device);
 	m_litMaskNode->AddPSConstantBuffer<LitMaskBuffer>(device);
+	m_shadowDebugNode->AddPSConstantBuffer<LitMaskBuffer>(device);
 	// m_hatchMaskNode takes no constant buffer -- both its inputs are textures
 
 	InitializeDepthTarget(device, textureWidth, textureHeight);
@@ -139,7 +147,7 @@ void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix
 	m_lightViewMatrix = glm::lookAt(lightEye, sceneCenter, up);
 	// eye sits at 2*radius from center, so the sphere spans [radius, 3*radius] along the view axis --
 	// near/far follow that exactly instead of the old fixed 0.1f, tightening depth precision.
-	m_lightProjectionMatrix = glm::ortho(
+	m_lightProjectionMatrix = glm::orthoZO(
 		-sceneRadius, sceneRadius,
 		-sceneRadius, sceneRadius,
 		sceneRadius * 0.5f, sceneRadius * 3.5f);
@@ -152,6 +160,7 @@ void Pipeline::Update(ID3D11DeviceContext* deviceContext, glm::mat4x4 viewMatrix
 	litMaskBuffer.shadowBias = 0.003f;
 
 	m_litMaskNode->UpdatePSConstantBuffer<LitMaskBuffer>(deviceContext, litMaskBuffer, 0);
+	m_shadowDebugNode->UpdatePSConstantBuffer<LitMaskBuffer>(deviceContext, litMaskBuffer, 0);
 }
 
 void Pipeline::SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 worldMatrix, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix)
@@ -249,6 +258,8 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 
 	// needs normal+depth from above and the shadow map from RenderShadowPass
 	RenderLitMaskPass(deviceContext);
+	// same inputs as above, just a debug view -- cheap enough to always run
+	RenderShadowDebugPass(deviceContext);
 	// needs the traced hatch textures + the mask from RenderLitMaskPass
 	RenderHatchMaskPass(deviceContext);
 }
@@ -406,6 +417,26 @@ void Pipeline::RenderLitMaskPass(ID3D11DeviceContext* deviceContext)
 	Unbind(deviceContext);
 }
 
+void Pipeline::RenderShadowDebugPass(ID3D11DeviceContext* deviceContext)
+{
+	ID3D11RenderTargetView* debugRTVPtr = m_shadowDebugRTV.Get();
+	deviceContext->OMSetRenderTargets(1, &debugRTVPtr, nullptr);
+
+	// t0 normal, t1 depth, t2 shadow map -- same as RenderLitMaskPass
+	ID3D11ShaderResourceView* srvs[] = { m_normalSRV.Get(), m_depthSRV.Get(), m_shadowDepthSRV.Get() };
+	deviceContext->PSSetShaderResources(0, 3, srvs);
+
+	deviceContext->PSSetSamplers(1, 1, m_shadowSampler.GetAddressOf());
+
+	m_shadowDebugNode->Render(deviceContext);
+	deviceContext->Draw(3, 0);
+
+	ID3D11ShaderResourceView* nullSRVs[] = { nullptr, nullptr, nullptr };
+	deviceContext->PSSetShaderResources(0, 3, nullSRVs);
+
+	Unbind(deviceContext);
+}
+
 void Pipeline::RenderHatchMaskPass(ID3D11DeviceContext* deviceContext)
 {
 	RenderHatchMask(deviceContext, m_hatchLinesSRV.Get(), m_hatchMaskedRTV.Get());
@@ -502,6 +533,8 @@ ID3D11ShaderResourceView* Pipeline::GetSRVForShadingMode(int shadingMode)
 		return m_curvatureMaskedSRV.Get();
 	case 13: // Lit mask alone (NdotL * shadow visibility)
 		return m_litMaskSRV.Get();
+	case 14: // false-color shadow debug: green lit, red shadowed, blue out of the light frustum
+		return m_shadowDebugSRV.Get();
 	default:
 		return nullptr;
 	}

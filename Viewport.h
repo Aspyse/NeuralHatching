@@ -11,22 +11,23 @@
 
 using Microsoft::WRL::ComPtr;
 
-const int N_SHADING_MODES = 14;
+const int N_SHADING_MODES = 15;
 inline const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
 	"Matcap",
 	"Normals",
 	"Depth",
-	"Cross Field",
-	"Cross Field (Minimum)",
+	"Curvature",
+	"Curvature (Minimum)",
 	"Reliability",
 	"Curvature (Neural)",
-	"Cross-Hatch (Traced)",
-	"Cross-Hatch (Minimum, Traced)",
-	"Curvature Hatch (Traced)",
-	"Cross-Hatch (Masked)",
-	"Cross-Hatch (Minimum, Masked)",
-	"Curvature Hatch (Masked)",
-	"Lit Mask"
+	"Cross-Hatch",
+	"Cross-Hatch (Minimum)",
+	"Cross-Hatch (Neural)",
+	"Masked Cross-Hatch",
+	"Masked Cross-Hatch (Minimum)",
+	"Masked Cross-Hatch (Neural)",
+	"Lit-Mask",
+	"Shadow False Color"
 };
 enum class ShadingMode : int
 {
@@ -43,7 +44,8 @@ enum class ShadingMode : int
 	CrossHatchMasked = 10,
 	CrossHatch2Masked = 11,
 	CurvatureHatchMasked = 12,
-	LitMask = 13
+	LitMask = 13,
+	ShadowDebug = 14
 };
 enum class LayoutMode : int
 {

@@ -111,6 +111,7 @@ private:
 
 	void RenderShadowPass(ID3D11DeviceContext* deviceContext, Scene* scene);
 	void RenderLitMaskPass(ID3D11DeviceContext* deviceContext);
+	void RenderShadowDebugPass(ID3D11DeviceContext* deviceContext);
 	void RenderHatchMaskPass(ID3D11DeviceContext* deviceContext);
 	void RenderHatchMask(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchLinesSRV, ID3D11RenderTargetView* maskedRTV);
 
@@ -137,6 +138,10 @@ private:
 	ComPtr<ID3D11RenderTargetView> m_litMaskRTV, m_hatchMaskedRTV, m_hatch2MaskedRTV, m_curvatureMaskedRTV;
 	ComPtr<ID3D11ShaderResourceView> m_litMaskSRV, m_hatchMaskedSRV, m_hatch2MaskedSRV, m_curvatureMaskedSRV;
 
+	// false-color lit/shadowed/out-of-bounds view, debug only
+	ComPtr<ID3D11RenderTargetView> m_shadowDebugRTV;
+	ComPtr<ID3D11ShaderResourceView> m_shadowDebugSRV;
+
 	// shadow map (light-space depth)
 	ComPtr<ID3D11DepthStencilView> m_shadowDepthDSV;
 	ComPtr<ID3D11ShaderResourceView> m_shadowDepthSRV;
@@ -145,7 +150,7 @@ private:
 	glm::mat4x4 m_lightViewMatrix, m_lightProjectionMatrix;
 
 	std::unique_ptr<GeometryNode> m_geometryNode, m_shadowDepthNode;
-	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_hatchLineNode, m_litMaskNode, m_hatchMaskNode;
+	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_hatchLineNode, m_litMaskNode, m_hatchMaskNode, m_shadowDebugNode;
 	std::unique_ptr<InferenceNode> m_inferenceNode;
 	std::unique_ptr<HatchTraceNode> m_hatchTraceNode, m_hatch2TraceNode, m_curvatureTraceNode;
 };
