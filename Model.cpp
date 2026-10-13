@@ -342,7 +342,7 @@ bool Model::LoadGLB(const char* filename)
 
 				// --- Positions ---
 				std::vector<glm::vec3> positions;
-				if (auto* it = primitive.findAttribute("POSITION"); it != primitive.attributes.end()) {
+				if (auto it = primitive.findAttribute("POSITION"); it != primitive.attributes.end()) {
 					auto& accessor = asset->accessors[it->accessorIndex];
 					positions.resize(accessor.count);
 					fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec3>(asset.get(), accessor,

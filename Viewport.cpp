@@ -87,6 +87,17 @@ void Viewport::SetLightDirection(const glm::vec3& dir)
 	m_lightDirection = dir;
 }
 
+bool Viewport::IsShadowMappingEnabled() const
+{
+	return m_shadowMappingEnabled;
+}
+
+void Viewport::SetShadowMappingEnabled(bool enabled)
+{
+	m_shadowMappingEnabled = enabled;
+	m_pipeline->SetShadowMappingEnabled(enabled);
+}
+
 void Viewport::RebuildViews()
 {
 	// read by Render() and UI

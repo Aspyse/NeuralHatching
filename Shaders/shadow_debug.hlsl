@@ -17,6 +17,8 @@ cbuffer LitMaskBuffer : register(b0)
     float4x4 lightViewProj;
     float3 lightDirectionVS;
     float shadowBias;
+    uint shadowMappingEnabled;
+    float3 shadowPad;
 };
 
 struct PixelInputType
@@ -46,6 +48,9 @@ float4 ShadowDebugPixelShader(PixelInputType input) : SV_TARGET
     float3 viewPos = ReconstructViewPos(input.uv);
     float3 L = normalize(-lightDirectionVS);
     float NdotL = dot(normalVS, L);
+
+    if (shadowMappingEnabled == 0)
+        return NdotL > 0.0f ? float4(0, 1, 0, 1) : float4(1, 0, 0, 1);
 
     float4 worldPos = mul(float4(viewPos, 1), invView);
     float4 lightPos = mul(worldPos, lightViewProj);

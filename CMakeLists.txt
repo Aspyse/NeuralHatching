@@ -129,6 +129,8 @@ target_include_directories (NeuralHatching PRIVATE
 )
 
 target_link_libraries(NeuralHatching PRIVATE fastgltf::fastgltf)
+target_link_libraries(NeuralHatching PRIVATE fastgltf::simdjson)
+target_link_libraries(NeuralHatching PRIVATE fastgltf::simdutf)
 target_link_libraries(NeuralHatching PRIVATE d3d11)
 target_link_libraries(NeuralHatching PRIVATE DirectXTK)
 target_link_libraries(NeuralHatching PRIVATE glm::glm)

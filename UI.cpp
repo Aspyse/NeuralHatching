@@ -275,6 +275,10 @@ bool UI::Frame()
 		if (ImGui::DragFloat3("Light Direction", &lightDir.x, 0.01f, -1.0f, 1.0f))
 			m_viewport->SetLightDirection(lightDir);
 
+		bool shadowMappingEnabled = m_viewport->IsShadowMappingEnabled();
+		if (ImGui::Checkbox("Shadow Mapping", &shadowMappingEnabled))
+			m_viewport->SetShadowMappingEnabled(shadowMappingEnabled);
+
 		ImGui::Separator();
 
 		auto it = m_scene->GetModels().find(selected_key);

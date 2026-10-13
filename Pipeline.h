@@ -74,6 +74,16 @@ private:
 
 		glm::vec3 lightDirectionVS;
 		float shadowBias;
+		UINT shadowMappingEnabled;
+		glm::vec3 shadowPad;
+	};
+	struct EdgeBuffer
+	{
+		glm::vec2 screenSize;
+		float normalThreshold;
+		float depthThreshold;
+		glm::vec2 nearFar;
+		glm::vec2 pad;
 	};
 
 public:
@@ -86,6 +96,7 @@ public:
 	//void Render(ID3D11DeviceContext* deviceContext, Scene* scene, int shadingMode, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
 	void RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* scene, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
 	void CompositeView(ID3D11DeviceContext* deviceContext, int shadingMode, D3D11_VIEWPORT viewportRect, bool drawGrid = true);
+	void SetShadowMappingEnabled(bool enabled) { m_shadowMappingEnabled = enabled; }
 
 	void CaptureDatapoint(ID3D11DeviceContext* deviceContext, std::wstring prefix = L"");
 
@@ -105,6 +116,7 @@ private:
 	void RenderGrid(ID3D11DeviceContext* deviceContext, D3D11_VIEWPORT viewportRect);
 
 	void RenderCurvaturePass(ID3D11DeviceContext* deviceContext);
+	void RenderEdgePass(ID3D11DeviceContext* deviceContext);
 
 	void RenderHatchingPass(ID3D11DeviceContext* deviceContext);
 	void RenderHatchLines(ID3D11DeviceContext* deviceContext, HatchTraceNode* tracer, ID3D11ShaderResourceView* fieldSRV, ID3D11RenderTargetView* targetRTV, glm::vec3 inkColor);
@@ -114,6 +126,8 @@ private:
 	void RenderShadowDebugPass(ID3D11DeviceContext* deviceContext);
 	void RenderHatchMaskPass(ID3D11DeviceContext* deviceContext);
 	void RenderHatchMask(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchLinesSRV, ID3D11RenderTargetView* maskedRTV);
+	void RenderHatchOutlinePass(ID3D11DeviceContext* deviceContext);
+	void RenderHatchOutline(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchSRV, ID3D11RenderTargetView* outlinedRTV);
 
 	void Unbind(ID3D11DeviceContext* deviceContext);
 
@@ -122,12 +136,13 @@ private:
 private:
 	const float CLEAR_COLOR[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
 	int m_bufferWidth, m_bufferHeight;
+	bool m_shadowMappingEnabled = true;
 
 	ComPtr<ID3D11SamplerState> m_sampler;
 	ComPtr<ID3D11BlendState> m_alphaBlendState;
 
-	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV, m_curvatureRTV;
-	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV, m_curvatureSRV;
+	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV, m_curvatureRTV, m_edgeRTV;
+	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV, m_curvatureSRV, m_edgeSRV;
 	ComPtr<ID3D11DepthStencilView> m_depthSV;
 
 	// Traced + drawn hatch lines, one output per direction field.
@@ -137,6 +152,9 @@ private:
 	// NdotL * shadow visibility, and each hatch layer masked by it
 	ComPtr<ID3D11RenderTargetView> m_litMaskRTV, m_hatchMaskedRTV, m_hatch2MaskedRTV, m_curvatureMaskedRTV;
 	ComPtr<ID3D11ShaderResourceView> m_litMaskSRV, m_hatchMaskedSRV, m_hatch2MaskedSRV, m_curvatureMaskedSRV;
+
+	ComPtr<ID3D11RenderTargetView> m_hatchOutlinedRTV, m_hatch2OutlinedRTV, m_curvatureOutlinedRTV;
+	ComPtr<ID3D11ShaderResourceView> m_hatchOutlinedSRV, m_hatch2OutlinedSRV, m_curvatureOutlinedSRV;
 
 	// false-color lit/shadowed/out-of-bounds view, debug only
 	ComPtr<ID3D11RenderTargetView> m_shadowDebugRTV;
@@ -150,7 +168,7 @@ private:
 	glm::mat4x4 m_lightViewMatrix, m_lightProjectionMatrix;
 
 	std::unique_ptr<GeometryNode> m_geometryNode, m_shadowDepthNode;
-	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_hatchLineNode, m_litMaskNode, m_hatchMaskNode, m_shadowDebugNode;
+	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_edgeNode, m_hatchLineNode, m_litMaskNode, m_hatchMaskNode, m_hatchOutlineNode, m_shadowDebugNode;
 	std::unique_ptr<InferenceNode> m_inferenceNode;
 	std::unique_ptr<HatchTraceNode> m_hatchTraceNode, m_hatch2TraceNode, m_curvatureTraceNode;
 };

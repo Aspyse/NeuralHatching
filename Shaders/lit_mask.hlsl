@@ -15,6 +15,8 @@ cbuffer LitMaskBuffer : register(b0)
     float4x4 lightViewProj;
     float3 lightDirectionVS;
     float shadowBias;
+    uint shadowMappingEnabled;
+    float3 shadowPad;
 };
 
 struct PixelInputType
@@ -54,10 +56,13 @@ float4 LitMaskPixelShader(PixelInputType input) : SV_TARGET
     float3 L = normalize(-lightDirectionVS);
     float NdotL = dot(normal, L);
 
-    float4 worldPos = mul(float4(viewPos, 1), invView);
-    float vis = ShadowVisibility(worldPos);
+    float vis = 1.0f;
+    if (shadowMappingEnabled != 0)
+    {
+        float4 worldPos = mul(float4(viewPos, 1), invView);
+        vis = ShadowVisibility(worldPos);
+    }
 
-    // hard threshold both terms -- no grays, just facing-the-light AND not-in-shadow
     float lit = (NdotL > 0.0f && vis > 0.5f) ? 1.0f : 0.0f;
     return float4(lit.xxx, 1);
 }
