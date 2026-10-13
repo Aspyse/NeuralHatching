@@ -89,6 +89,35 @@ namespace
 	const COMDLG_FILTERSPEC PLY_FILTERS[] = { { L"PLY Files", L"*.ply" }, { L"All Files", L"*.*" } };
 	const COMDLG_FILTERSPEC OBJ_FILTERS[] = { { L"OBJ Files", L"*.obj" }, { L"All Files", L"*.*" } };
 	const COMDLG_FILTERSPEC GLB_FILTERS[] = { { L"GLB Files", L"*.glb" }, { L"All Files", L"*.*" } };
+
+	// Keep intermediate debug outputs available to the pipeline, without exposing
+	// them as selectable viewport modes.
+	const ShadingMode VIEWPORT_MODES[] = {
+		ShadingMode::Matcap,
+		ShadingMode::Normal,
+		ShadingMode::Depth,
+		ShadingMode::Crossfield,
+		ShadingMode::Crossfield2,
+		ShadingMode::Reliability,
+		ShadingMode::Curvature,
+		ShadingMode::CrossHatchMasked,
+		ShadingMode::CrossHatch2Masked,
+		ShadingMode::CurvatureHatchMasked,
+		ShadingMode::LitMask,
+		ShadingMode::CrossHatchOutlined,
+		ShadingMode::CrossHatch2Outlined,
+		ShadingMode::CurvatureHatchOutlined,
+		ShadingMode::FlatComposite,
+		ShadingMode::FlatComposite2,
+		ShadingMode::FlatCompositeCurvature
+	};
+
+	bool GetViewportModeName(void*, int index, const char** name)
+	{
+		const int modeIndex = static_cast<int>(VIEWPORT_MODES[index]);
+		*name = SHADING_MODE_NAMES[modeIndex];
+		return true;
+	}
 }
 
 bool UI::Frame()
@@ -257,14 +286,26 @@ bool UI::Frame()
 		for (int cell = 0; cell < viewCount; cell++)
 		{
 			ShadingMode mode = m_viewport->GetShadingMode(cell);
-			int currentIndex = static_cast<int>(mode);
+			int currentIndex = 0;
+			bool visibleMode = false;
+			for (int i = 0; i < static_cast<int>(std::size(VIEWPORT_MODES)); i++)
+			{
+				if (VIEWPORT_MODES[i] == mode)
+				{
+					currentIndex = i;
+					visibleMode = true;
+					break;
+				}
+			}
+			if (!visibleMode)
+				m_viewport->SetShadingMode(cell, ShadingMode::Matcap);
 
 			// single view has no position, use a plain label
 			const char* label = (viewCount == 1) ? "Shading Mode" : cellLabels[cell];
 
 			ImGui::PushID(cell);
-			if (ImGui::Combo(label, &currentIndex, SHADING_MODE_NAMES, N_SHADING_MODES))
-				m_viewport->SetShadingMode(cell, static_cast<ShadingMode>(currentIndex));
+			if (ImGui::Combo(label, &currentIndex, GetViewportModeName, nullptr, static_cast<int>(std::size(VIEWPORT_MODES))))
+				m_viewport->SetShadingMode(cell, VIEWPORT_MODES[currentIndex]);
 			ImGui::PopID();
 		}
 

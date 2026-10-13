@@ -59,7 +59,9 @@ public:
 	void UpdatePSConstantBuffer(ID3D11DeviceContext* deviceContext, T bufferData, int index)
 	{
 		D3D11_MAPPED_SUBRESOURCE mapped = {};
-		deviceContext->Map(m_psConstantBuffers[index].Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+		HRESULT result = deviceContext->Map(m_psConstantBuffers[index].Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+		if (FAILED(result))
+			return;
 		std::memcpy(mapped.pData, &bufferData, sizeof(bufferData));
 		deviceContext->Unmap(m_psConstantBuffers[index].Get(), 0);
 	}
@@ -67,7 +69,9 @@ public:
 	void UpdateVSConstantBuffer(ID3D11DeviceContext* deviceContext, T bufferData, int index)
 	{
 		D3D11_MAPPED_SUBRESOURCE mapped = {};
-		deviceContext->Map(m_vsConstantBuffers[index].Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+		HRESULT result = deviceContext->Map(m_vsConstantBuffers[index].Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+		if (FAILED(result))
+			return;
 		std::memcpy(mapped.pData, &bufferData, sizeof(bufferData));
 		deviceContext->Unmap(m_vsConstantBuffers[index].Get(), 0);
 	}

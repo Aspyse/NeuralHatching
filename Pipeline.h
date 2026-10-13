@@ -137,6 +137,7 @@ private:
 	void RenderHatchMask(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchLinesSRV, ID3D11RenderTargetView* maskedRTV);
 	void RenderHatchOutlinePass(ID3D11DeviceContext* deviceContext);
 	void RenderHatchOutline(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchSRV, ID3D11RenderTargetView* outlinedRTV);
+	void RenderFlatCompositePass(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchSRV, ID3D11RenderTargetView* targetRTV);
 
 	void Unbind(ID3D11DeviceContext* deviceContext);
 
@@ -150,8 +151,8 @@ private:
 	ComPtr<ID3D11SamplerState> m_sampler, m_materialSampler;
 	ComPtr<ID3D11BlendState> m_alphaBlendState;
 
-	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV, m_albedoRTV, m_roughnessRTV, m_curvatureRTV, m_edgeRTV;
-	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV, m_albedoSRV, m_roughnessSRV, m_curvatureSRV, m_edgeSRV;
+	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV, m_albedoRTV, m_roughnessRTV, m_curvatureRTV, m_edgeRTV, m_flatCompositeRTV, m_flatComposite2RTV, m_flatCompositeCurvatureRTV;
+	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV, m_albedoSRV, m_roughnessSRV, m_curvatureSRV, m_edgeSRV, m_flatCompositeSRV, m_flatComposite2SRV, m_flatCompositeCurvatureSRV;
 	ComPtr<ID3D11DepthStencilView> m_depthSV;
 
 	// Traced + drawn hatch lines, one output per direction field.
@@ -177,7 +178,7 @@ private:
 	glm::mat4x4 m_lightViewMatrix, m_lightProjectionMatrix;
 
 	std::unique_ptr<GeometryNode> m_geometryNode, m_shadowDepthNode;
-	std::unique_ptr<Node> m_matcapNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_edgeNode, m_hatchLineNode, m_litMaskNode, m_hatchMaskNode, m_hatchOutlineNode, m_shadowDebugNode;
+	std::unique_ptr<Node> m_matcapNode, m_flatCompositeNode, m_outNode, m_depthPassthruNode, m_gridNode, m_curvaturePostNode, m_edgeNode, m_hatchLineNode, m_litMaskNode, m_hatchMaskNode, m_hatchOutlineNode, m_shadowDebugNode;
 	std::unique_ptr<InferenceNode> m_inferenceNode;
 	std::unique_ptr<HatchTraceNode> m_hatchTraceNode, m_hatch2TraceNode, m_curvatureTraceNode;
 };

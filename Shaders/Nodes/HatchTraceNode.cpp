@@ -4,7 +4,6 @@
 #include <fstream>
 #include <random>
 #include <d3dcompiler.h>
-#include "Logging.h" // TEMP DEBUG
 
 bool HatchTraceNode::Initialize(ID3D11Device* device, const wchar_t* csFilename, LPCSTR csEntrypoint, float seedSpacing, float jitterAmount, int maxSteps, float stepSize, int occGridWidth, int occGridHeight, unsigned int rngSeed)
 {
@@ -39,11 +38,6 @@ void HatchTraceNode::Trace(ID3D11DeviceContext* deviceContext, ID3D11ShaderResou
 	deviceContext->CSSetShader(m_traceShader.Get(), nullptr, 0);
 
 	deviceContext->Dispatch((m_totalSeeds + 63) / 64, 1, 1);
-
-	// TEMP DEBUG: read back the line vertex buffer and count how many
-	// vertices came back marked active, to check whether the trace shader
-	// is actually producing live streamlines. Remove once diagnosed.
-	DebugLogLiveVertexCount(deviceContext);
 
 	// Unbind so the field SRV isn't left bound to the CS stage if it's
 	// needed elsewhere (e.g. as a render target again) next frame.
@@ -240,64 +234,6 @@ bool HatchTraceNode::InitializeSampler(ID3D11Device* device)
 		return false;
 
 	return true;
-}
-
-// TEMP DEBUG: copies m_lineVertexBuffer to a CPU-readable staging buffer and
-// counts how many LineVertex entries have active > 0.5. Remove once the
-// black-hatch-view issue is diagnosed -- this stalls the pipeline (Map blocks
-// on GPU completion) so it's not something to ship.
-void HatchTraceNode::DebugLogLiveVertexCount(ID3D11DeviceContext* deviceContext)
-{
-	ComPtr<ID3D11Device> device;
-	deviceContext->GetDevice(device.GetAddressOf());
-
-	D3D11_BUFFER_DESC desc;
-	m_lineVertexBuffer->GetDesc(&desc);
-	desc.Usage = D3D11_USAGE_STAGING;
-	desc.BindFlags = 0;
-	desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-	desc.MiscFlags = 0;
-
-	ComPtr<ID3D11Buffer> stagingBuf;
-	HRESULT hr = device->CreateBuffer(&desc, nullptr, stagingBuf.GetAddressOf());
-	if (FAILED(hr))
-	{
-		Logging::DEBUG_LOG(L"[HatchTrace] staging buffer creation failed");
-		return;
-	}
-
-	deviceContext->CopyResource(stagingBuf.Get(), m_lineVertexBuffer.Get());
-
-	D3D11_MAPPED_SUBRESOURCE mapped;
-	hr = deviceContext->Map(stagingBuf.Get(), 0, D3D11_MAP_READ, 0, &mapped);
-	if (FAILED(hr))
-	{
-		Logging::DEBUG_LOG(L"[HatchTrace] staging buffer map failed");
-		return;
-	}
-
-	const LineVertex* verts = static_cast<const LineVertex*>(mapped.pData);
-	int totalVerts = m_totalSeeds * m_maxSteps;
-	int liveCount = 0;
-	int seedsWithAnyLiveVert = 0;
-	for (int seed = 0; seed < m_totalSeeds; ++seed)
-	{
-		bool seedHasLive = false;
-		for (int step = 0; step < m_maxSteps; ++step)
-		{
-			if (verts[seed * m_maxSteps + step].active > 0.5f)
-			{
-				liveCount++;
-				seedHasLive = true;
-			}
-		}
-		if (seedHasLive)
-			seedsWithAnyLiveVert++;
-	}
-	deviceContext->Unmap(stagingBuf.Get(), 0);
-
-	Logging::DEBUG_LOG(L"[HatchTrace] live verts: ", liveCount, L" / ", totalVerts,
-		L"  seeds with >=1 live vert: ", seedsWithAnyLiveVert, L" / ", m_totalSeeds);
 }
 
 void HatchTraceNode::OutputShaderErrorMessage(ID3D10Blob* errorMessage, const wchar_t* shaderFilename)

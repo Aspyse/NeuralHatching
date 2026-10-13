@@ -11,7 +11,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-const int N_SHADING_MODES = 19;
+const int N_SHADING_MODES = 22;
 inline const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
 	"Matcap",
 	"Normals",
@@ -31,7 +31,10 @@ inline const char* SHADING_MODE_NAMES[N_SHADING_MODES] = {
 	"Geometry Edges",
 	"Outlined Cross-Hatch",
 	"Outlined Cross-Hatch (Minimum)",
-	"Outlined Cross-Hatch (Neural)"
+	"Outlined Cross-Hatch (Neural)",
+	"Albedo + Edges + Hatch",
+	"Albedo + Edges + Hatch (Minimum)",
+	"Albedo + Edges + Hatch (Neural)"
 };
 enum class ShadingMode : int
 {
@@ -53,7 +56,10 @@ enum class ShadingMode : int
 	GeometryEdges = 15,
 	CrossHatchOutlined = 16,
 	CrossHatch2Outlined = 17,
-	CurvatureHatchOutlined = 18
+	CurvatureHatchOutlined = 18,
+	FlatComposite = 19,
+	FlatComposite2 = 20,
+	FlatCompositeCurvature = 21
 };
 enum class LayoutMode : int
 {

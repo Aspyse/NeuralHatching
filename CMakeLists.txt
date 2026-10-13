@@ -137,7 +137,7 @@ target_link_libraries(NeuralHatching PRIVATE glm::glm)
 target_link_libraries(NeuralHatching PRIVATE rapidobj::rapidobj)
 target_link_libraries(NeuralHatching PRIVATE onnxruntime::onnxruntime)
 
-file(GLOB_RECURSE ALL_RESOURCES
+file(GLOB_RECURSE ALL_RESOURCES CONFIGURE_DEPENDS
 	"${CMAKE_SOURCE_DIR}/Shaders/*.hlsl"
 	"${CMAKE_SOURCE_DIR}/Models/*.ply"
 	"${CMAKE_SOURCE_DIR}/Models/*.glb"

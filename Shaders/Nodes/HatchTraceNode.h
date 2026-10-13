@@ -58,9 +58,6 @@ private:
 
 	void OutputShaderErrorMessage(ID3D10Blob* errorMessage, const wchar_t* shaderFilename);
 
-	// TEMP DEBUG: see matching comment in the .cpp. Remove once diagnosed.
-	void DebugLogLiveVertexCount(ID3D11DeviceContext* deviceContext);
-
 private:
 	ComPtr<ID3D11ComputeShader> m_traceShader;
 	ComPtr<ID3D11SamplerState> m_linearSampler;

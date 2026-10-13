@@ -88,8 +88,20 @@ void InferenceNode::RunInferenceOnStaging(ID3D11DeviceContext* deviceContext, ID
 	const auto tMapStart = Clock::now();
 
 	D3D11_MAPPED_SUBRESOURCE normalMapped = {}, depthMapped = {};
-	deviceContext->Map(normalStaging, 0, D3D11_MAP_READ, 0, &normalMapped);
-	deviceContext->Map(depthStaging, 0, D3D11_MAP_READ, 0, &depthMapped);
+	HRESULT result = deviceContext->Map(normalStaging, 0, D3D11_MAP_READ, 0, &normalMapped);
+	if (FAILED(result))
+	{
+		Logging::DEBUG_LOG(L"InferenceNode: normal staging map failed");
+		return;
+	}
+
+	result = deviceContext->Map(depthStaging, 0, D3D11_MAP_READ, 0, &depthMapped);
+	if (FAILED(result))
+	{
+		deviceContext->Unmap(normalStaging, 0);
+		Logging::DEBUG_LOG(L"InferenceNode: depth staging map failed");
+		return;
+	}
 
 	const auto tPackStart = Clock::now();
 
@@ -158,7 +170,12 @@ void InferenceNode::RunInferenceOnStaging(ID3D11DeviceContext* deviceContext, ID
 
 		// pack the raw prediction + mask into the upload texture
 		D3D11_MAPPED_SUBRESOURCE outMapped = {};
-		deviceContext->Map(m_outputTexture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &outMapped);
+		result = deviceContext->Map(m_outputTexture.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &outMapped);
+		if (FAILED(result))
+		{
+			Logging::DEBUG_LOG(L"InferenceNode: output texture map failed");
+			return;
+		}
 		for (int y = 0; y < m_height; y++)
 		{
 			float* outRow = reinterpret_cast<float*>(static_cast<uint8_t*>(outMapped.pData) + static_cast<size_t>(y) * outMapped.RowPitch);

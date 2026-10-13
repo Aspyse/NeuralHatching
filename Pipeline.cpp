@@ -19,6 +19,9 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 	result = CreateRenderTarget(device, m_matcapRTV.GetAddressOf(), m_matcapSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_curvatureRTV.GetAddressOf(), m_curvatureSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_edgeRTV.GetAddressOf(), m_edgeSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_flatCompositeRTV.GetAddressOf(), m_flatCompositeSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_flatComposite2RTV.GetAddressOf(), m_flatComposite2SRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_flatCompositeCurvatureRTV.GetAddressOf(), m_flatCompositeCurvatureSRV.GetAddressOf(), textureWidth, textureHeight);
 
 	result = CreateRenderTarget(device, m_hatchLinesRTV.GetAddressOf(), m_hatchLinesSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_hatch2LinesRTV.GetAddressOf(), m_hatch2LinesSRV.GetAddressOf(), textureWidth, textureHeight);
@@ -46,6 +49,9 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 
 	m_matcapNode = std::make_unique<Node>();
 	m_matcapNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/matcap.hlsl", "BaseVertexShader", "PostprocessShader");
+
+	m_flatCompositeNode = std::make_unique<Node>();
+	m_flatCompositeNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/flat_composite.hlsl", "BaseVertexShader", "FlatCompositePixelShader");
 
 	m_outNode = std::make_unique<Node>();
 	m_outNode->Initialize(device, L"Shaders/fullscreen.hlsl", L"Shaders/fullscreen.hlsl", "BaseVertexShader", "PostprocessShader");
@@ -316,6 +322,9 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 	// needs the traced hatch textures + the mask from RenderLitMaskPass
 	RenderHatchMaskPass(deviceContext);
 	RenderHatchOutlinePass(deviceContext);
+	RenderFlatCompositePass(deviceContext, m_hatchMaskedSRV.Get(), m_flatCompositeRTV.Get());
+	RenderFlatCompositePass(deviceContext, m_hatch2MaskedSRV.Get(), m_flatComposite2RTV.Get());
+	RenderFlatCompositePass(deviceContext, m_curvatureMaskedSRV.Get(), m_flatCompositeCurvatureRTV.Get());
 }
 
 void Pipeline::RenderCurvaturePass(ID3D11DeviceContext* deviceContext)
@@ -539,6 +548,27 @@ void Pipeline::RenderHatchOutlinePass(ID3D11DeviceContext* deviceContext)
 	RenderHatchOutline(deviceContext, m_curvatureMaskedSRV.Get(), m_curvatureOutlinedRTV.Get());
 }
 
+void Pipeline::RenderFlatCompositePass(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchSRV, ID3D11RenderTargetView* targetRTV)
+{
+	ID3D11RenderTargetView* rtv = targetRTV;
+	deviceContext->OMSetRenderTargets(1, &rtv, nullptr);
+
+	ID3D11ShaderResourceView* inputs[] = {
+		m_albedoSRV.Get(),
+		m_edgeSRV.Get(),
+		hatchSRV,
+		m_depthSRV.Get()
+	};
+	deviceContext->PSSetShaderResources(0, 4, inputs);
+	deviceContext->PSSetSamplers(0, 1, m_sampler.GetAddressOf());
+	m_flatCompositeNode->Render(deviceContext);
+	deviceContext->Draw(3, 0);
+
+	ID3D11ShaderResourceView* nullSRVs[4] = {};
+	deviceContext->PSSetShaderResources(0, 4, nullSRVs);
+	Unbind(deviceContext);
+}
+
 void Pipeline::RenderHatchOutline(ID3D11DeviceContext* deviceContext, ID3D11ShaderResourceView* hatchSRV, ID3D11RenderTargetView* outlinedRTV)
 {
 	ID3D11RenderTargetView* rtvPtr = outlinedRTV;
@@ -638,6 +668,12 @@ ID3D11ShaderResourceView* Pipeline::GetSRVForShadingMode(int shadingMode)
 		return m_hatch2OutlinedSRV.Get();
 	case 18: // masked neural curvature hatch with geometry edges on top
 		return m_curvatureOutlinedSRV.Get();
+	case 19: // flat albedo with masked cross-hatch and geometry edges
+		return m_flatCompositeSRV.Get();
+	case 20: // flat albedo with masked secondary cross-hatch and geometry edges
+		return m_flatComposite2SRV.Get();
+	case 21: // flat albedo with masked neural curvature hatch and geometry edges
+		return m_flatCompositeCurvatureSRV.Get();
 	default:
 		return nullptr;
 	}
