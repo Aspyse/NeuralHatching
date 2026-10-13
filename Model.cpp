@@ -3,6 +3,7 @@
 #include <miniply.h>
 #include "rapidobj/rapidobj.hpp"
 #include <fastgltf/tools.hpp>
+#include <WICTextureLoader.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
@@ -21,7 +22,7 @@ void Model::Initialize(uint64_t uid)
 	m_uid = uid;
 }
 
-bool Model::Load(ID3D11Device* device, const char* filename)
+bool Model::Load(ID3D11Device* device, ID3D11DeviceContext* deviceContext, const char* filename)
 {
 	std::string fullFilename = std::string("Models/") + filename;
 
@@ -41,13 +42,9 @@ bool Model::Load(ID3D11Device* device, const char* filename)
 	}
 	else if (ext == ".glb" || ext == ".glb") {
 		Logging::DEBUG_LOG(L"LOADING GLB MODEL ", m_name, L"...");
-		if (!LoadGLB(fullFilename.c_str())) return false;
+		if (!LoadGLB(device, deviceContext, fullFilename.c_str())) return false;
 	}
 	else return false;
-
-	// Dummy UVs
-	for (uint32_t i = 0; i < m_vertexCount; ++i)
-		m_vertices[i].uv = glm::vec2(0.0f, 0.0f);
 
 	// Scale and center
 	Autonormalize();
@@ -78,6 +75,11 @@ void Model::Render(ID3D11DeviceContext* deviceContext)
 int Model::GetIndexCount()
 {
 	return static_cast<int>(m_indices.size());
+}
+
+const std::vector<Model::MeshPart>& Model::GetMeshParts()
+{
+	return m_meshParts;
 }
 
 glm::mat4 Model::GetWorldMatrix()
@@ -185,6 +187,7 @@ bool Model::LoadPLY(const char* filename)
 	if (!gotVerts || !gotFaces)
 		return false;
 
+	m_meshParts = { { 0, static_cast<UINT>(m_indices.size()) } };
 	return true;
 }
 
@@ -282,14 +285,16 @@ bool Model::LoadOBJ(const char* filename)
 	if (!flagNormal)
 		CalculateNormals();
 
+	m_meshParts = { { 0, static_cast<UINT>(m_indices.size()) } };
 	return true;
 }
 
-bool Model::LoadGLB(const char* filename)
+bool Model::LoadGLB(ID3D11Device* device, ID3D11DeviceContext* deviceContext, const char* filename)
 {
 	Logging::DEBUG_LOG(L"FASTGLTF PARSING...");
 	m_vertices.clear();
 	m_indices.clear();
+	m_meshParts.clear();
 
 	auto ext = fastgltf::Extensions::KHR_mesh_quantization;
 	fastgltf::Parser parser{ ext };
@@ -303,6 +308,40 @@ bool Model::LoadGLB(const char* filename)
 
 	UINT defaultScene = asset->defaultScene.has_value() ? asset->defaultScene.value() : 0;
 	const auto& scene = asset->scenes[defaultScene];
+	std::vector<ComPtr<ID3D11ShaderResourceView>> imageTextures(asset->images.size());
+	std::vector<bool> imageLoadAttempted(asset->images.size(), false);
+	const size_t textureMaxSize = 1024;
+
+	auto loadTexture = [&](const fastgltf::optional<fastgltf::TextureInfo>& textureInfo, ComPtr<ID3D11ShaderResourceView>& texture) {
+		if (!textureInfo.has_value()) return;
+		const auto& gltfTexture = asset->textures[textureInfo->textureIndex];
+		if (!gltfTexture.imageIndex.has_value()) return;
+		size_t imageIndex = gltfTexture.imageIndex.value();
+
+		if (!imageLoadAttempted[imageIndex]) {
+			imageLoadAttempted[imageIndex] = true;
+			const auto& image = asset->images[imageIndex];
+			std::visit(fastgltf::visitor {
+				[&](const fastgltf::sources::BufferView& view) {
+					if (view.mimeType != fastgltf::MimeType::PNG && view.mimeType != fastgltf::MimeType::JPEG) return;
+
+					const auto& bufferView = asset->bufferViews[view.bufferViewIndex];
+					const auto& buffer = asset->buffers[bufferView.bufferIndex];
+					std::visit(fastgltf::visitor {
+						[&](const fastgltf::sources::Array& bytes) {
+							if (bufferView.byteOffset + bufferView.byteLength > bytes.bytes.size()) return;
+							HRESULT result = DirectX::CreateWICTextureFromMemory(device, deviceContext, reinterpret_cast<const uint8_t*>(bytes.bytes.data() + bufferView.byteOffset), bufferView.byteLength, nullptr, imageTextures[imageIndex].GetAddressOf(), textureMaxSize);
+							if (FAILED(result)) Logging::DEBUG_LOG(L"FAILED TO LOAD GLB TEXTURE ", imageIndex, L": ", static_cast<long>(result));
+						},
+						[](const auto&) {}
+					}, buffer.data);
+				},
+				[](const auto&) {}
+			}, image.data);
+		}
+
+		texture = imageTextures[imageIndex];
+	};
 
 	Logging::DEBUG_LOG(L"READING GLB VERTICES AND INDICES...");
 	Logging::DEBUG_START();
@@ -339,6 +378,28 @@ bool Model::LoadGLB(const char* filename)
 
 			for (const auto& primitive : mesh.primitives) {
 				UINT baseVertex = static_cast<UINT>(m_vertices.size());
+				MeshPart meshPart;
+				meshPart.indexOffset = static_cast<UINT>(m_indices.size());
+
+				if (primitive.materialIndex.has_value()) {
+					const auto& material = asset->materials[primitive.materialIndex.value()];
+					meshPart.opaque = material.alphaMode == fastgltf::AlphaMode::Opaque;
+
+					if (meshPart.opaque) {
+						glm::vec4 albedoFactor = glm::vec4(
+							material.pbrData.baseColorFactor[0], material.pbrData.baseColorFactor[1],
+							material.pbrData.baseColorFactor[2], material.pbrData.baseColorFactor[3]);
+						float roughnessFactor = material.pbrData.roughnessFactor;
+
+						loadTexture(material.pbrData.baseColorTexture, meshPart.albedoTexture);
+						loadTexture(material.pbrData.metallicRoughnessTexture, meshPart.roughnessTexture);
+
+						if (meshPart.albedoTexture)
+							meshPart.albedo = albedoFactor;
+						if (meshPart.roughnessTexture)
+							meshPart.roughness = roughnessFactor;
+					}
+				}
 
 				// --- Positions ---
 				std::vector<glm::vec3> positions;
@@ -362,6 +423,17 @@ bool Model::LoadGLB(const char* filename)
 						});
 				}
 
+				// --- UVs ---
+				std::vector<glm::vec2> uvs;
+				if (auto it = primitive.findAttribute("TEXCOORD_0"); it != primitive.attributes.end()) {
+					auto& accessor = asset->accessors[it->accessorIndex];
+					uvs.resize(accessor.count);
+					fastgltf::iterateAccessorWithIndex<fastgltf::math::fvec2>(asset.get(), accessor,
+						[&](fastgltf::math::fvec2 val, UINT i) {
+							uvs[i] = glm::vec2(val[0], val[1]);
+						});
+				}
+
 				// --- Assemble Vertices ---
 				for (size_t i = 0; i < positions.size(); ++i) {
 					Vertex v;
@@ -379,7 +451,7 @@ bool Model::LoadGLB(const char* filename)
 						v.normal = localNormal;
 					}
 
-					v.uv = glm::vec2(0.0f, 0.0f);
+					v.uv = (i < uvs.size()) ? uvs[i] : glm::vec2(0.0f, 0.0f);
 
 					m_vertices.push_back(v);
 				}
@@ -392,6 +464,8 @@ bool Model::LoadGLB(const char* filename)
 							m_indices.push_back(val + baseVertex);
 						});
 				}
+				meshPart.indexCount = static_cast<UINT>(m_indices.size()) - meshPart.indexOffset;
+				m_meshParts.push_back(meshPart);
 			}
 		}
 

@@ -34,6 +34,14 @@ private:
 		glm::vec3 lightDirectionVS;
 		float pad;
 	};
+	struct MaterialBuffer
+	{
+		glm::vec4 albedo;
+		float roughness;
+		UINT hasAlbedoTexture;
+		UINT hasRoughnessTexture;
+		float pad;
+	};
 	struct GridBuffer
 	{
 		glm::mat4x4 invViewProj;
@@ -109,6 +117,7 @@ private:
 	bool InitializeBlendState(ID3D11Device* device);
 
 	bool InitializeShadowMap(ID3D11Device* device, int shadowMapSize);
+	bool InitializeSamplers(ID3D11Device* device);
 	bool InitializeShadowSampler(ID3D11Device* device);
 
 	void SceneUpdate(ID3D11DeviceContext* deviceContext, glm::mat4x4 worldMatrix, glm::mat4x4 viewMatrix, glm::mat4x4 projectionMatrix);
@@ -138,11 +147,11 @@ private:
 	int m_bufferWidth, m_bufferHeight;
 	bool m_shadowMappingEnabled = true;
 
-	ComPtr<ID3D11SamplerState> m_sampler;
+	ComPtr<ID3D11SamplerState> m_sampler, m_materialSampler;
 	ComPtr<ID3D11BlendState> m_alphaBlendState;
 
-	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV, m_curvatureRTV, m_edgeRTV;
-	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV, m_curvatureSRV, m_edgeSRV;
+	ComPtr<ID3D11RenderTargetView> m_normalRTV, m_hatchRTV, m_hatch2RTV, m_matcapRTV, m_outRTV, m_depthPassthruRTV, m_reliabilityRTV, m_albedoRTV, m_roughnessRTV, m_curvatureRTV, m_edgeRTV;
+	ComPtr<ID3D11ShaderResourceView> m_normalSRV, m_hatchSRV,m_hatch2SRV, m_depthSRV, m_matcapSRV, m_depthPassthruSRV, m_reliabilitySRV, m_albedoSRV, m_roughnessSRV, m_curvatureSRV, m_edgeSRV;
 	ComPtr<ID3D11DepthStencilView> m_depthSV;
 
 	// Traced + drawn hatch lines, one output per direction field.

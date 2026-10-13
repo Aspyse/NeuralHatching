@@ -55,7 +55,7 @@ bool Editor::Initialize()
 	//m_model = std::make_unique<Model>();
 	//m_model->Load(m_viewport->GetDevice(), "bun_zipper.ply");
 	m_scene = std::make_unique<Scene>();
-	m_scene->LoadModel(m_viewport->GetDevice(), "bun_zipper.ply");
+	m_scene->LoadModel(m_viewport->GetDevice(), m_viewport->GetContext(), "bun_zipper.ply");
 
 	std::function<void()> synthesizeCallback;
 	synthesizeCallback = [this]() { this->m_isSynthesisScheduled = true; };

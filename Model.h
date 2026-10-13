@@ -46,17 +46,29 @@ private:
 	};
 
 public:
+	struct MeshPart
+	{
+		UINT indexOffset = 0;
+		UINT indexCount = 0;
+		bool opaque = true;
+		glm::vec4 albedo = glm::vec4(2.0f);
+		float roughness = 0.2f;
+		ComPtr<ID3D11ShaderResourceView> albedoTexture;
+		ComPtr<ID3D11ShaderResourceView> roughnessTexture;
+	};
+
 	friend class Curvature;
 
 	Model();
 	~Model();
 
 	void Initialize(uint64_t uid);
-	bool Load(ID3D11Device* device, const char* filename);
+	bool Load(ID3D11Device* device, ID3D11DeviceContext* deviceContext, const char* filename);
 	
 	void Render(ID3D11DeviceContext* context);
 	
 	int GetIndexCount();
+	const std::vector<MeshPart>& GetMeshParts();
 	glm::vec3 GetPosition();
 	glm::vec3 GetRotation();
 	glm::vec3 GetScale();
@@ -78,7 +90,7 @@ private:
 
 	bool LoadPLY(const char* filename);
 	bool LoadOBJ(const char* filename);
-	bool LoadGLB(const char* filename);
+	bool LoadGLB(ID3D11Device* device, ID3D11DeviceContext* deviceContext, const char* filename);
 
 private:
 	uint64_t m_uid = 0;
@@ -94,6 +106,7 @@ private:
 	ComPtr<ID3D11Buffer> m_indexBuffer;
 	std::vector<Vertex> m_vertices;
 	std::vector<uint32_t> m_indices;
+	std::vector<MeshPart> m_meshParts;
 
 	std::vector<CurvatureInfo> m_curvatures;
 	glm::vec4 m_tangent = glm::vec4();

@@ -5,6 +5,19 @@ cbuffer MatrixBuffer : register(b0)
     float4x4 projectionMatrix;
 };
 
+cbuffer MaterialBuffer : register(b1)
+{
+    float4 albedo;
+    float roughness;
+    uint hasAlbedoTexture;
+    uint hasRoughnessTexture;
+    float pad;
+};
+
+Texture2D albedoTexture : register(t0);
+Texture2D roughnessTexture : register(t1);
+SamplerState materialSampler : register(s0);
+
 struct VertexInputType
 {
     float3 position : POSITION;
@@ -37,6 +50,8 @@ PixelInputType GeometryVertexShader(VertexInputType input)
     output.position = mul(output.position, viewMatrix);
     output.position = mul(output.position, projectionMatrix);
 
+    output.uv = input.uv;
+
     float3 N = normalize(input.normal);
     
     output.normal = N;
@@ -67,6 +82,8 @@ struct PixelOutputType
     float3 hatch : SV_Target1;
     float3 hatch2 : SV_Target2;
     float reliable : SV_Target3;
+    float4 albedo : SV_Target4;
+    float roughness : SV_Target5;
 };
 
 PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
@@ -99,10 +116,20 @@ PixelOutputType GeometryPixelShader(PixelInputType input) : SV_TARGET
     hatch = hatch * 0.5f + 0.5f;
     hatch2 = hatch2 * 0.5f + 0.5f;
     
+    float4 materialAlbedo = albedo;
+    if (hasAlbedoTexture) {
+        materialAlbedo = albedoTexture.Sample(materialSampler, input.uv) * albedo;
+    }
+
     output.normal = normal;
     output.hatch = hatch;
     output.hatch2 = hatch2;
     output.reliable = input.reliable;
+    output.albedo = materialAlbedo;
+    float rough = roughness;
+    if (hasRoughnessTexture)
+        rough = roughnessTexture.Sample(materialSampler, input.uv).g * roughness;
+    output.roughness = rough;
 
     return output;
 }

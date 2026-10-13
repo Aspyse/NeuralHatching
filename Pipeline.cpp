@@ -9,6 +9,8 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 
 	bool result = CreateRenderTarget(device, m_normalRTV.GetAddressOf(), m_normalSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_depthPassthruRTV.GetAddressOf(), m_depthPassthruSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_albedoRTV.GetAddressOf(), m_albedoSRV.GetAddressOf(), textureWidth, textureHeight);
+	result = CreateRenderTarget(device, m_roughnessRTV.GetAddressOf(), m_roughnessSRV.GetAddressOf(), textureWidth, textureHeight);
 
 	result = CreateRenderTarget(device, m_hatchRTV.GetAddressOf(), m_hatchSRV.GetAddressOf(), textureWidth, textureHeight);
 	result = CreateRenderTarget(device, m_hatch2RTV.GetAddressOf(), m_hatch2SRV.GetAddressOf(), textureWidth, textureHeight);
@@ -95,6 +97,7 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 
 	m_geometryNode->AddVSConstantBuffer<MatrixBuffer>(device);
 	m_geometryNode->AddPSConstantBuffer<MatrixBuffer>(device);
+	m_geometryNode->AddPSConstantBuffer<MaterialBuffer>(device);
 	m_depthPassthruNode->AddPSConstantBuffer<DepthBuffer>(device);
 	m_matcapNode->AddPSConstantBuffer<MatcapBuffer>(device);
 	m_gridNode->AddPSConstantBuffer<GridBuffer>(device);
@@ -109,6 +112,7 @@ void Pipeline::Initialize(ID3D11Device* device, ID3D11RenderTargetView* outRTV, 
 
 	InitializeDepthTarget(device, textureWidth, textureHeight);
 	InitializeShadowMap(device, m_shadowMapSize);
+	InitializeSamplers(device);
 	InitializeShadowSampler(device);
 	InitializeBlendState(device);
 }
@@ -219,17 +223,22 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 	deviceContext->ClearRenderTargetView(m_curvatureRTV.Get(), CLEAR_COLOR);
 	deviceContext->ClearRenderTargetView(m_hatch2RTV.Get(), CLEAR_COLOR);
 	deviceContext->ClearRenderTargetView(m_reliabilityRTV.Get(), CLEAR_COLOR);
+	deviceContext->ClearRenderTargetView(m_albedoRTV.Get(), CLEAR_COLOR);
+	deviceContext->ClearRenderTargetView(m_roughnessRTV.Get(), CLEAR_COLOR);
 
-	ID3D11ShaderResourceView* nullSRV[] = { nullptr, nullptr };
-	deviceContext->PSSetShaderResources(0, 2, nullSRV);
+	ID3D11ShaderResourceView* nullSRV[] = { nullptr, nullptr, nullptr, nullptr };
+	deviceContext->PSSetShaderResources(0, 4, nullSRV);
 	// Bind g-buffer RTV and depth
 	ID3D11RenderTargetView* gbufferRTVPtr[] = {
 		m_normalRTV.Get(),
 		m_hatchRTV.Get(),
 		m_hatch2RTV.Get(),
-		m_reliabilityRTV.Get()
+		m_reliabilityRTV.Get(),
+		m_albedoRTV.Get(),
+		m_roughnessRTV.Get()
 	};
-	deviceContext->OMSetRenderTargets(4, gbufferRTVPtr, m_depthSV.Get());
+	deviceContext->OMSetRenderTargets(6, gbufferRTVPtr, m_depthSV.Get());
+	deviceContext->PSSetSamplers(0, 1, m_materialSampler.GetAddressOf());
 	// Set geometry shader
 	//m_geometryNode->Render(deviceContext);
 
@@ -239,13 +248,32 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 		SceneUpdate(deviceContext, model->GetWorldMatrix(), viewMatrix, projectionMatrix);
 		model->Render(deviceContext);
 		m_geometryNode->Render(deviceContext);
-		deviceContext->DrawIndexed(model->GetIndexCount(), 0, 0);
+
+		for (const auto& meshPart : model->GetMeshParts()) {
+			if (!meshPart.opaque) continue;
+
+			MaterialBuffer materialBuffer;
+			materialBuffer.albedo = meshPart.albedo;
+			materialBuffer.roughness = meshPart.roughness;
+			materialBuffer.hasAlbedoTexture = meshPart.albedoTexture ? 1u : 0u;
+			materialBuffer.hasRoughnessTexture = meshPart.roughnessTexture ? 1u : 0u;
+			materialBuffer.pad = 0.0f;
+			m_geometryNode->UpdatePSConstantBuffer<MaterialBuffer>(deviceContext, materialBuffer, 1);
+
+			ID3D11ShaderResourceView* materialSRVPtr[] = {
+				meshPart.albedoTexture.Get(),
+				meshPart.roughnessTexture.Get()
+			};
+			deviceContext->PSSetShaderResources(0, 2, materialSRVPtr);
+			deviceContext->DrawIndexed(meshPart.indexCount, meshPart.indexOffset, 0);
+		}
 	}
 	
 
 	Unbind(deviceContext);
 
 	// Bind depth passthrough
+	deviceContext->PSSetSamplers(0, 1, m_sampler.GetAddressOf());
 	ID3D11RenderTargetView* depthPassthruRTVPtr = m_depthPassthruRTV.Get();
 	deviceContext->OMSetRenderTargets(1, &depthPassthruRTVPtr, nullptr);
 	// Bind depth SRV
@@ -266,9 +294,11 @@ void Pipeline::RenderGeometryPass(ID3D11DeviceContext* deviceContext, Scene* sce
 	// Bind g-buffer SRVs
 	ID3D11ShaderResourceView* gbufferSRVPtr[] = {
 		m_normalSRV.Get(),
-		m_depthSRV.Get()
+		m_depthSRV.Get(),
+		m_albedoSRV.Get(),
+		m_roughnessSRV.Get()
 	};
-	deviceContext->PSSetShaderResources(0, 2, gbufferSRVPtr);
+	deviceContext->PSSetShaderResources(0, 4, gbufferSRVPtr);
 	// Set matcap shader
 	m_matcapNode->Render(deviceContext);
 	// Draw fullscreen tri
@@ -831,6 +861,27 @@ bool Pipeline::InitializeShadowMap(ID3D11Device* device, int shadowMapSize)
 
 	m_shadowMapSize = shadowMapSize;
 	return true;
+}
+
+bool Pipeline::InitializeSamplers(ID3D11Device* device)
+{
+	D3D11_SAMPLER_DESC sd = {};
+	sd.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	sd.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sd.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sd.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	sd.ComparisonFunc = D3D11_COMPARISON_ALWAYS;
+	sd.MaxLOD = D3D11_FLOAT32_MAX;
+
+	HRESULT result = device->CreateSamplerState(&sd, m_sampler.GetAddressOf());
+	if (FAILED(result))
+		return false;
+
+	sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+	result = device->CreateSamplerState(&sd, m_materialSampler.GetAddressOf());
+	return SUCCEEDED(result);
 }
 
 bool Pipeline::InitializeShadowSampler(ID3D11Device* device)

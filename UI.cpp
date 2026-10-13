@@ -114,7 +114,7 @@ bool UI::Frame()
 						if (!file.empty())
 						{
 							strncpy_s(m_modelFile, file.c_str(), _TRUNCATE);
-							m_scene->LoadModel(m_viewport->GetDevice(), m_modelFile);
+							m_scene->LoadModel(m_viewport->GetDevice(), m_viewport->GetContext(), m_modelFile);
 						}
 					};
 
