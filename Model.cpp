@@ -10,7 +10,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/quaternion.hpp>
-#include <algorithm>
 #include <functional>
 
 #include "Logging.h"
@@ -386,9 +385,7 @@ bool Model::LoadGLB(ID3D11Device* device, ID3D11DeviceContext* deviceContext, co
 
 				if (primitive.materialIndex.has_value()) {
 					const auto& material = asset->materials[primitive.materialIndex.value()];
-					// Some exports, including BistroInterior, mark every material BLEND
-					// even though the scene has no opaque alternative. Preserve the strict
-					// opaque-only policy when available, but render that kind of file.
+					// some exports mark every material BLEND
 					meshPart.opaque = !hasOpaqueMaterials || material.alphaMode == fastgltf::AlphaMode::Opaque;
 
 					if (meshPart.opaque) {
