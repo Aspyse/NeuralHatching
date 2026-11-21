@@ -11,7 +11,7 @@ public:
 	
 	//void Initialize();
 
-	void LoadModel(ID3D11Device* device, const char* filename);
+	void LoadModel(ID3D11Device* device, ID3D11DeviceContext* deviceContext, const char* filename);
 	void DeleteModel(uint64_t uid);
 
 	const std::unordered_map<uint64_t, std::unique_ptr<Model>>& GetModels() const;

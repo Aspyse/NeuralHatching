@@ -1,5 +1,7 @@
 Texture2D normalTexture : register(t0);
 Texture2D depthTexture : register(t1);
+Texture2D albedoTexture : register(t2);
+Texture2D roughnessTexture : register(t3);
 
 SamplerState pointClamp : register(s0);
 
@@ -32,15 +34,12 @@ float3 ReconstructViewPos(float2 uv)
 float4 PostprocessShader(PixelInputType input) : SV_TARGET
 {
     const float PI = 3.14159;
-    const float4 COLOR = float4(2, 2, 2, 1);
-    const float3 AMBIENT = float3(0.12, 0.12, 0.12);
-    const float3 BG = float3(0.1, 0.1, 0.1);
-    const float ROUGHNESS = 0.2;
-    
-    float4 albedo = COLOR;
+    const float3 AMBIENT = float3(0.4, 0.4, 0.4);
+    const float3 BG = float3(0.3, 0.3, 0.3);
+    float4 albedo = albedoTexture.Sample(pointClamp, input.uv);
     float4 nr = normalTexture.Sample(pointClamp, input.uv);
     float3 normal = normalize(nr.rgb * 2 - 1);
-    float alpha = max(ROUGHNESS, 0.01);
+    float alpha = max(roughnessTexture.Sample(pointClamp, input.uv).r, 0.01);
     alpha *= alpha;
 
     float3 viewPos = ReconstructViewPos(input.uv);
@@ -54,8 +53,7 @@ float4 PostprocessShader(PixelInputType input) : SV_TARGET
 	//return float4(shadowMap.SampleLevel(pointClamp, input.uv, 0).rrr,1);
 
 	// AMBIENT
-    //float4 ambient = albedo * float4(AMBIENT, 1);
-    float4 ambient = float4(AMBIENT, 1);
+    float4 ambient = albedo * float4(AMBIENT, 1);
     float depth = depthTexture.Sample(pointClamp, input.uv).r;
     if (depth == 1)
         return float4(BG, 1);

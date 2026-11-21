@@ -3,11 +3,11 @@
 Scene::Scene() {}
 Scene::~Scene() {}
 
-void Scene::LoadModel(ID3D11Device* device, const char* filename)
+void Scene::LoadModel(ID3D11Device* device, ID3D11DeviceContext* deviceContext, const char* filename)
 {
 	Model model;
 	model.Initialize(m_nextUID);
-	model.Load(device, filename);
+	model.Load(device, deviceContext, filename);
 	m_models[m_nextUID++] = std::make_unique<Model>(std::move(model));
 }
 
