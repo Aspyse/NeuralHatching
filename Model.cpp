@@ -10,6 +10,7 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <algorithm>
 #include <functional>
 
 #include "Logging.h"
@@ -308,6 +309,8 @@ bool Model::LoadGLB(ID3D11Device* device, ID3D11DeviceContext* deviceContext, co
 
 	UINT defaultScene = asset->defaultScene.has_value() ? asset->defaultScene.value() : 0;
 	const auto& scene = asset->scenes[defaultScene];
+	const bool hasOpaqueMaterials = std::any_of(asset->materials.begin(), asset->materials.end(),
+		[](const fastgltf::Material& material) { return material.alphaMode == fastgltf::AlphaMode::Opaque; });
 	std::vector<ComPtr<ID3D11ShaderResourceView>> imageTextures(asset->images.size());
 	std::vector<bool> imageLoadAttempted(asset->images.size(), false);
 	const size_t textureMaxSize = 1024;
@@ -383,7 +386,10 @@ bool Model::LoadGLB(ID3D11Device* device, ID3D11DeviceContext* deviceContext, co
 
 				if (primitive.materialIndex.has_value()) {
 					const auto& material = asset->materials[primitive.materialIndex.value()];
-					meshPart.opaque = material.alphaMode == fastgltf::AlphaMode::Opaque;
+					// Some exports, including BistroInterior, mark every material BLEND
+					// even though the scene has no opaque alternative. Preserve the strict
+					// opaque-only policy when available, but render that kind of file.
+					meshPart.opaque = !hasOpaqueMaterials || material.alphaMode == fastgltf::AlphaMode::Opaque;
 
 					if (meshPart.opaque) {
 						glm::vec4 albedoFactor = glm::vec4(
